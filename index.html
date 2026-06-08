@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>电路维修-管理员“技忆”恢复训练 v1.1.7</title>
+    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.3</title>
     <style>
         :root {
             --bg: #0b0f1a;
@@ -208,7 +208,7 @@
             text-align: center; font-size: 0.8em; color: var(--text-secondary); margin-top: 8px; padding: 8px;
         }
 
-        /* ---------- 手机模式 ---------- */
+        /* 手机模式 */
         body.mobile-mode {
             overflow: hidden; touch-action: manipulation; padding: 0; height: 100vh; display: flex; flex-direction: column;
         }
@@ -233,13 +233,12 @@
             gap: 0;
             overflow: hidden;
             min-height: 0;
-            align-items: center;          /* 水平居中 */
-            justify-content: center;      /* 垂直居中（若有剩余空间） */
+            align-items: center;
         }
 
         body.mobile-mode .grid-area-container {
-            flex: 0 0 auto;               /* 不拉伸，尺寸由内容决定 */
-            margin: 0;                    /* 移除auto，由父flex居中 */
+            flex: 0 0 auto;
+            margin: auto;
             overflow: visible;
             padding: 2px;
             background: #0a0f18;
@@ -302,7 +301,6 @@
         body.mobile-mode .setting-group select { padding: 4px 6px; font-size: 0.65em; }
         body.mobile-mode .mobile-hide { display: none !important; }
 
-        /* 可拖拽菜单按钮 */
         .mobile-menu-btn {
             display: none;
             position: fixed;
@@ -402,12 +400,10 @@
             <strong>移除：</strong>点击已放置的方块可将其拿起并重新放置。<br>
             <strong>提示：</strong>高亮可能正确的单元格（绿色半透明）。</p>
             <h3>手机操作</h3>
-            <p><strong>选择方块：</strong>在底部候选区点击方块（选中后会有高亮边框）。<br>
-            <strong>放置：</strong>选中方块后点击网格空白处，方块会预览在对应位置，此时点击底部“放置”按钮完成放置。<br>
-            <strong>拖拽移动：</strong>也可直接按住候选方块拖动到网格上（与桌面类似），松开后进入预览，再点“放置”。<br>
-            <strong>重新拿起：</strong>点击网格上已放置的方块，它会回到手中（变为选中状态），可重新摆放。<br>
-            <strong>预览调整：</strong>在预览状态下，点击“旋转”按钮可旋转方块，拖动预览方块可移动位置。<br>
-            <strong>取消：</strong>点击“取消”按钮或点击其他区域可退出预览。<br>
+            <p><strong>拖放：</strong>长按候选方块直接拖动到网格上，松开后预览位置。<br>
+            <strong>放置：</strong>预览满意后点击“放置”按钮。<br>
+            <strong>旋转：</strong>预览时点击“旋转”按钮或按R键。<br>
+            <strong>移除：</strong>点击已放置方块可将其拿起重新拖动。<br>
             <strong>菜单：</strong>左上角 ☰ 按钮可打开菜单，长按可拖拽移动位置。</p>
             <h3>数据存储</h3><p>积分自动保存至浏览器本地存储，清除缓存会导致积分丢失。</p>
             <p><a href="#" id="showAlgoLink" style="color:var(--accent);">查看实现</a> | <a href="#" id="showShapesFromHelp" style="color:var(--accent);">方块图鉴</a></p>
@@ -419,11 +415,11 @@
     <div class="algo-dialog">
         <div class="algo-title">核心算法实现细节</div>
         <div class="algo-content" style="max-height:60vh; overflow-y:auto;">
-            <h3>谜题生成</h3><p>根据难度配置填充比例与障碍比例，先随机放置少量障碍，然后通过对称策略（竖直、水平、双向、中心或无）生成基础填充图案，确保目标填充格子分布均衡。随后贪心分解：从未覆盖格子出发，优先匹配最大尺寸的可用形状，形成方块并记录其覆盖的坐标；无法匹配的孤立格子转为障碍。最后依据颜色模式，将部分方块整块变色（保持覆盖坐标不变），更新各颜色的行列计数。整个过程保证候选方块能完整拼回目标图案，且性能优化（分解循环设有安全上限，失败自动重试）。</p>
-            <h3>提示算法</h3><p>基于当前各颜色的行列完成情况，计算剩余需求。按列优先排序，每列选择剩余需求最大的行格子进行高亮。若需求相同则随机选择，保证每次提示有随机性且不与当前放置冲突。高亮仅标记可能位置，不自动放置。</p>
-            <h3>拖拽与旋转</h3><p>使用固定定位的幽灵方块跟随鼠标，通过网格包围盒与单元格尺寸计算锚点实现对齐。旋转时根据记录的鼠标位置实时更新预览。已放置方块可被点击重新拿起，同样进入拖拽状态。</p>
-            <h3>存档加密</h3><p>存档使用简单的异或加密后保存为二进制文件，防止用户直接修改JSON内容。</p>
-            <h3>多色处理</h3><p>单色谜题生成并分解后，按颜色模式计算需变色的方块数量，随机选择方块将其颜色组与颜色替换，并重新计算对应颜色在网格中的分布与计数。</p>
+            <h3>谜题生成</h3><p>根据难度配置填充比例与障碍比例，先随机放置少量障碍，然后通过对称策略生成基础填充图案，确保目标填充格子分布均衡。随后贪心分解：从未覆盖格子出发，优先匹配最大尺寸的可用形状，形成方块并记录其覆盖的坐标。最后依据颜色模式，将部分方块整块变色，更新各颜色的行列计数。</p>
+            <h3>提示算法</h3><p>基于当前各颜色的行列完成情况，计算剩余需求。按列优先排序，每列选择剩余需求最大的行格子进行高亮。高亮仅标记可能位置，不自动放置。</p>
+            <h3>拖拽与旋转</h3><p>使用固定定位的幽灵方块跟随触摸/鼠标，通过网格包围盒与单元格尺寸计算锚点实现对齐。旋转时根据记录的触摸位置实时更新预览。</p>
+            <h3>存档加密</h3><p>存档使用异或加密后保存为二进制文件，防止用户直接修改JSON内容。</p>
+            <h3>多色处理</h3><p>单色谜题生成并分解后，按颜色模式计算需变色的方块数量，随机选择方块变色，并重新计算对应颜色的计数。</p>
         </div>
         <button class="btn btn-secondary algo-back" id="btnAlgoBack">返回</button>
         <button class="btn btn-primary algo-close" id="btnAlgoClose">关闭</button>
@@ -703,7 +699,6 @@
         all(pre=null,pr=-1,pc=-1,pv=false){this.grid(pre,pr,pc,pv);this.hints();this.cands();this.status();}
         grid(pre,pr,pc,pv){
             const {rows,cols,grid,obstacle,hintCells}=this.s;
-            // 桌面端使用1fr，手机端由_adjustGridSize设置px，这里只设置列数
             this.ge.style.gridTemplateColumns=`repeat(${cols},1fr)`;
             const pSet=new Set(); if(pre&&pr>=0)for(const[dy,dx]of pre){const y=pr+dy,x=pc+dx;if(y>=0&&y<rows&&x>=0&&x<cols)pSet.add(`${y},${x}`);}
             let h=''; const cm={}; for(const b of this.s.player)if(b.used)cm[b.id]=b.color;
@@ -801,7 +796,6 @@
             if (this.s.mobile) {
                 this._adjustGridSize();
             } else {
-                // 桌面端恢复默认
                 this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
                 this.r.ge.style.gridTemplateRows = '';
                 this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, 1fr)`;
@@ -826,28 +820,23 @@
         _adjustGridSize() {
             if (!this.s.mobile) return;
             const mainArea = document.querySelector('.main-game-area');
-            const container = this.r.ge.parentElement; // grid-area-container
+            const container = this.r.ge.parentElement;
             const corner = container.querySelector('.corner-empty');
             const gap = 2;
-
-            // 获取主区域可用空间（减去候选区高度和padding等）
             const mainWidth = mainArea.clientWidth;
             const mainHeight = mainArea.clientHeight;
             const candidateHeight = mainArea.querySelector('.candidate-panel').offsetHeight;
             const controlsHeight = document.getElementById('mobileControls').offsetHeight;
-            const verticalPadding = 16; // 上下内边距
+            const verticalPadding = 16;
             const availHeight = mainHeight - candidateHeight - controlsHeight - verticalPadding;
-
-            // 先估算一个初始cellSize
             let cellSize = 42;
-            // 逐步计算，确保网格+提示不超出可用空间
             for (let trySize = 42; trySize >= 12; trySize--) {
                 const totalGridWidth = trySize * this.s.cols + gap * (this.s.cols - 1);
                 const totalGridHeight = trySize * this.s.rows + gap * (this.s.rows - 1);
                 const cornerSize = trySize;
-                const rowHintWidth = trySize; // 行提示宽度等于格子大小
+                const rowHintWidth = trySize;
                 const colHintHeight = trySize;
-                const neededWidth = cornerSize + rowHintWidth + totalGridWidth + 4; // padding
+                const neededWidth = cornerSize + rowHintWidth + totalGridWidth + 4;
                 const neededHeight = cornerSize + colHintHeight + totalGridHeight + 4;
                 if (neededWidth <= mainWidth && neededHeight <= availHeight) {
                     cellSize = trySize;
@@ -855,20 +844,14 @@
                 }
             }
             cellSize = Math.max(cellSize, 12);
-
-            // 应用尺寸
             this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
             this.r.ge.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
-
             corner.style.width = `${cellSize}px`;
             corner.style.height = `${cellSize}px`;
-
             this.r.rh.style.gridAutoColumns = `${cellSize}px`;
             this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
             this.r.ch.style.gridAutoRows = `${cellSize}px`;
             this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
-
-            // 设置提示单元格样式
             const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
             hintCells.forEach(el => {
                 el.style.width = `${cellSize}px`;
@@ -876,12 +859,8 @@
                 el.style.lineHeight = `${cellSize}px`;
                 el.style.overflow = 'hidden';
             });
-
-            // 自适应字体大小
             let fontSize = Math.floor(cellSize * 0.3);
-            for (const cell of hintCells) {
-                cell.style.fontSize = `${fontSize}px`;
-            }
+            for (const cell of hintCells) cell.style.fontSize = `${fontSize}px`;
             let safety = 0;
             while (safety < 10) {
                 let overflow = false;
@@ -893,12 +872,9 @@
                 }
                 if (!overflow) break;
                 fontSize = Math.max(6, fontSize - 1);
-                for (const cell of hintCells) {
-                    cell.style.fontSize = `${fontSize}px`;
-                }
+                for (const cell of hintCells) cell.style.fontSize = `${fontSize}px`;
                 safety++;
             }
-
             this.cs = cellSize;
             this.r.all();
         }
@@ -997,152 +973,15 @@
         _ev(){
             const D=document, G=this.r.ge, C=this.r.cl;
 
-            let candTouchStartX, candTouchStartY;
-            C.addEventListener('touchstart', e => {
-                if (!this.s.mobile) return;
-                if (e.touches.length !== 1) return;
-                const touch = e.touches[0];
-                candTouchStartX = touch.clientX;
-                candTouchStartY = touch.clientY;
-            }, { passive: false });
-            C.addEventListener('touchend', e => {
-                if (!this.s.mobile) return;
-                const el = e.target.closest('.candidate-block');
-                if (!el || el.classList.contains('used')) return;
-                const touch = e.changedTouches[0];
-                const dx = touch.clientX - candTouchStartX;
-                const dy = touch.clientY - candTouchStartY;
-                if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-                    e.preventDefault();
-                    const blockId = el.dataset.blockId;
-                    if (this.s.selected === blockId) {
-                        this.s.selected = null;
-                    } else {
-                        this.s.selected = blockId;
-                    }
-                    if (this.s.preview) this._cancelPrev();
-                    this.r.cands(this.s.selected);
-                }
-            });
-
-            G.addEventListener('touchstart', e => {
-                if (!this.s.mobile) return;
-                if (e.touches.length !== 1) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                if (this.s.preview) {
-                    const block = this.s.player.find(b => b.id === this.s.preview);
-                    if (block && block._psh) {
-                        const shape = block._psh;
-                        const r = this.s.previewR, c = this.s.previewC;
-                        const cell = e.target.closest('.grid-cell');
-                        if (cell) {
-                            const cr = parseInt(cell.dataset.row), cc = parseInt(cell.dataset.col);
-                            const relR = cr - r, relC = cc - c;
-                            if (shape.some(([y,x]) => y === relR && x === relC)) {
-                                this.s.isDragging = true;
-                                this.s.dragBlock = block;
-                                this.s.dragShape = [...shape];
-                                this.s.draggedBlockId = block.id;
-                                this.s.preview = null;
-                                delete block._psh;
-                                this.r.mobile(false);
-                                this.s.lastMX = touch.clientX;
-                                this.s.lastMY = touch.clientY;
-                                this.r.ghost(shape, block.color, touch.clientX, touch.clientY, this.cs);
-                                this.r.grid();
-                                this.r.hints();
-                                return;
-                            }
-                        }
-                    }
-                    this._cancelPrev();
-                    return;
-                }
-                if (this.s.selected) {
-                    const block = this.s.player.find(b => b.id === this.s.selected && !b.used);
-                    if (!block) return;
-                    this.s.isDragging = true;
-                    this.s.dragBlock = block;
-                    this.s.dragShape = [...block.shape];
-                    this.s.draggedBlockId = block.id;
-                    this.s.lastMX = touch.clientX;
-                    this.s.lastMY = touch.clientY;
-                    this.r.ghost(block.shape, block.color, touch.clientX, touch.clientY, this.cs);
-                } else {
-                    const cell = e.target.closest('.grid-cell');
-                    if (!cell) return;
-                    const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
-                    if (isNaN(r) || isNaN(c)) return;
-                    if (this.s.obstacle[r][c]) return;
-                    if (this.s.grid[r][c]) {
-                        const block = this.s.player.find(b => b.id === this.s.grid[r][c]);
-                        if (block) {
-                            this.s.remove(block);
-                            this.s.selected = block.id;
-                            this.s.isDragging = true;
-                            this.s.dragBlock = block;
-                            this.s.dragShape = [...block.shape];
-                            this.s.draggedBlockId = block.id;
-                            this.s.lastMX = touch.clientX;
-                            this.s.lastMY = touch.clientY;
-                            this.r.ghost(block.shape, block.color, touch.clientX, touch.clientY, this.cs);
-                            this.r.cands(block.id);
-                            this.r.grid();
-                            this.r.hints();
-                        }
-                    }
-                }
-            });
-            D.addEventListener('touchmove', e => {
-                if (!this.s.mobile) return;
-                if (!this.s.isDragging || e.touches.length !== 1) return;
-                e.preventDefault();
-                const touch = e.touches[0];
-                this.s.lastMX = touch.clientX;
-                this.s.lastMY = touch.clientY;
-                const sh = this.s.dragShape, b = this.s.dragBlock;
-                this.r.ghost(sh, b.color, touch.clientX, touch.clientY, this.cs);
-                const a = this._anchor(touch.clientX, touch.clientY, sh);
-                if (a) {
-                    const v = this.s.canPlace(sh, a.row, a.col);
-                    this.r.grid(sh, a.row, a.col, v);
-                } else {
-                    this.r.grid();
-                }
-                this.r.hints();
-            });
-            D.addEventListener('touchend', e => {
-                if (!this.s.mobile) return;
-                if (!this.s.isDragging) return;
-                e.preventDefault();
-                const touch = e.changedTouches[0];
-                const sh = this.s.dragShape, b = this.s.dragBlock;
-                const a = this._anchor(touch.clientX, touch.clientY, sh);
-                if (a && this.s.canPlace(sh, a.row, a.col)) {
-                    this._setPrev(b, a.row, a.col, sh);
-                } else {
-                    this.s.isDragging = false;
-                    this.s.dragBlock = null;
-                    this.s.dragShape = null;
-                    this.s.draggedBlockId = null;
-                    this.r.hideGhost();
-                    this.r.grid();
-                    this.r.hints();
-                    this.r.cands(this.s.selected);
-                }
-            });
-
-            // 桌面端事件（保持不变）
+            // 桌面端候选方块鼠标事件
             C.addEventListener('mousedown', e => {
-                if (this.s.mobile) return;
                 const el = e.target.closest('.candidate-block');
                 if (!el || el.classList.contains('used')) return;
                 e.preventDefault();
                 this._start(el.dataset.blockId, e.clientX, e.clientY);
             });
+            // 桌面端网格鼠标事件
             G.addEventListener('mousedown', e => {
-                if (this.s.mobile) return;
                 if (e.button !== 0) return;
                 if (this.s.isDragging) return;
                 const cell = e.target.closest('.grid-cell');
@@ -1157,17 +996,14 @@
                 }
             });
             D.addEventListener('mousemove', e => {
-                if (this.s.mobile) return;
                 this.s.lastMX = e.clientX; this.s.lastMY = e.clientY;
                 if (this.s.isDragging) { e.preventDefault(); this._drag(e.clientX, e.clientY); }
             });
             D.addEventListener('mouseup', e => {
-                if (this.s.mobile) return;
                 if (e.button === 2) return;
                 if (this.s.isDragging) { e.preventDefault(); this._end(e.clientX, e.clientY); }
             });
             G.addEventListener('contextmenu', e => {
-                if (this.s.mobile) return;
                 e.preventDefault();
                 if (this.s.isDragging) this._rotDrag();
                 else if (this.s.preview) this._rotPrev();
@@ -1184,6 +1020,46 @@
                     if (b) this._remove(b);
                 }
             });
+
+            // 手机端触摸事件（恢复直接拖拽）
+            C.addEventListener('touchstart', e => {
+                const el = e.target.closest('.candidate-block');
+                if (!el || el.classList.contains('used') || e.touches.length !== 1) return;
+                e.preventDefault();
+                this._start(el.dataset.blockId, e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: false });
+            G.addEventListener('touchstart', e => {
+                if (this.s.isDragging || this.s.preview) return;
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) return;
+                const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+                if (isNaN(r) || isNaN(c)) return;
+                if (this.s.obstacle[r][c]) return;
+                if (this.s.grid[r][c] && e.touches.length === 1) {
+                    e.preventDefault();
+                    const block = this.s.player.find(b => b.id === this.s.grid[r][c]);
+                    if (block) this._startRedrag(block, e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: false });
+            D.addEventListener('touchmove', e => {
+                if (e.touches.length === 1) {
+                    this.s.lastMX = e.touches[0].clientX;
+                    this.s.lastMY = e.touches[0].clientY;
+                }
+                if (this.s.isDragging && e.touches.length === 1) {
+                    e.preventDefault();
+                    this._drag(e.touches[0].clientX, e.touches[0].clientY);
+                } else if (this.s.preview && e.touches.length === 1) {
+                    e.preventDefault();
+                    this._movePrev(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: false });
+            D.addEventListener('touchend', e => {
+                if (this.s.isDragging) {
+                    this._end(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+                }
+            });
+
             D.addEventListener('keydown', e => {
                 if (e.key === 'r' || e.key === 'R') {
                     if (this.s.isDragging) { e.preventDefault(); this._rotDrag(); }
