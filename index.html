@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.3</title>
+    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.4</title>
     <style>
         :root {
             --bg: #0b0f1a;
@@ -381,7 +381,7 @@
     <div class="mobile-controls" id="mobileControls">
         <button class="btn btn-primary btn-small" id="btnRotateMobile">旋转</button>
         <button class="btn btn-primary" id="btnPlaceMobile">放置</button>
-        <button class="btn btn-secondary" id="btnCancelMobile">取消</button>
+        <button class="btn btn-secondary" id="btnCancelMobile">撤下</button>
     </div>
 </div>
 <div class="author-info">轮椅工作室-涵吾珑 &nbsp;|&nbsp; QQ群: 754973653 (电路维修程序交流群)</div>
@@ -401,9 +401,9 @@
             <strong>提示：</strong>高亮可能正确的单元格（绿色半透明）。</p>
             <h3>手机操作</h3>
             <p><strong>拖放：</strong>长按候选方块直接拖动到网格上，松开后预览位置。<br>
-            <strong>放置：</strong>预览满意后点击“放置”按钮。<br>
-            <strong>旋转：</strong>预览时点击“旋转”按钮或按R键。<br>
-            <strong>移除：</strong>点击已放置方块可将其拿起重新拖动。<br>
+            <strong>调整：</strong>预览状态下可再次拖拽预览方块移动位置，或点击“旋转”按钮旋转。<br>
+            <strong>放置：</strong>点击“放置”按钮确认。<br>
+            <strong>撤下：</strong>点击“撤下”按钮或拖到网格外可取消当前预览。<br>
             <strong>菜单：</strong>左上角 ☰ 按钮可打开菜单，长按可拖拽移动位置。</p>
             <h3>数据存储</h3><p>积分自动保存至浏览器本地存储，清除缓存会导致积分丢失。</p>
             <p><a href="#" id="showAlgoLink" style="color:var(--accent);">查看实现</a> | <a href="#" id="showShapesFromHelp" style="color:var(--accent);">方块图鉴</a></p>
@@ -973,14 +973,13 @@
         _ev(){
             const D=document, G=this.r.ge, C=this.r.cl;
 
-            // 桌面端候选方块鼠标事件
+            // 桌面端事件
             C.addEventListener('mousedown', e => {
                 const el = e.target.closest('.candidate-block');
                 if (!el || el.classList.contains('used')) return;
                 e.preventDefault();
                 this._start(el.dataset.blockId, e.clientX, e.clientY);
             });
-            // 桌面端网格鼠标事件
             G.addEventListener('mousedown', e => {
                 if (e.button !== 0) return;
                 if (this.s.isDragging) return;
@@ -1021,26 +1020,65 @@
                 }
             });
 
-            // 手机端触摸事件（恢复直接拖拽）
+            // 手机端触摸事件
             C.addEventListener('touchstart', e => {
                 const el = e.target.closest('.candidate-block');
                 if (!el || el.classList.contains('used') || e.touches.length !== 1) return;
                 e.preventDefault();
                 this._start(el.dataset.blockId, e.touches[0].clientX, e.touches[0].clientY);
             }, { passive: false });
+
             G.addEventListener('touchstart', e => {
-                if (this.s.isDragging || this.s.preview) return;
+                if (e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                // 如果正在拖拽，不处理
+                if (this.s.isDragging) return;
+                // 如果已经有预览方块，判断触摸点是否在预览方块上
+                if (this.s.preview) {
+                    const block = this.s.player.find(b => b.id === this.s.preview);
+                    if (block && block._psh) {
+                        const shape = block._psh;
+                        const pr = this.s.previewR, pc = this.s.previewC;
+                        const cell = e.target.closest('.grid-cell');
+                        if (cell) {
+                            const cr = parseInt(cell.dataset.row), cc = parseInt(cell.dataset.col);
+                            const relR = cr - pr, relC = cc - pc;
+                            if (shape.some(([y,x]) => y === relR && x === relC)) {
+                                // 点击在预览方块上，拿起重新拖拽
+                                e.preventDefault();
+                                this.s.isDragging = true;
+                                this.s.dragBlock = block;
+                                this.s.dragShape = [...shape];
+                                this.s.draggedBlockId = block.id;
+                                this.s.preview = null;
+                                delete block._psh;
+                                this.r.mobile(false);
+                                this.s.lastMX = touch.clientX;
+                                this.s.lastMY = touch.clientY;
+                                this.r.ghost(shape, block.color, touch.clientX, touch.clientY, this.cs);
+                                this.r.grid();
+                                this.r.hints();
+                                return;
+                            }
+                        }
+                    }
+                    // 触摸点在预览方块外，取消预览
+                    this._cancelPrev();
+                    return;
+                }
+                // 无预览，处理拿起已放置方块
                 const cell = e.target.closest('.grid-cell');
                 if (!cell) return;
                 const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
                 if (isNaN(r) || isNaN(c)) return;
                 if (this.s.obstacle[r][c]) return;
-                if (this.s.grid[r][c] && e.touches.length === 1) {
+                if (this.s.grid[r][c]) {
                     e.preventDefault();
                     const block = this.s.player.find(b => b.id === this.s.grid[r][c]);
-                    if (block) this._startRedrag(block, e.touches[0].clientX, e.touches[0].clientY);
+                    if (block) this._startRedrag(block, touch.clientX, touch.clientY);
                 }
             }, { passive: false });
+
             D.addEventListener('touchmove', e => {
                 if (e.touches.length === 1) {
                     this.s.lastMX = e.touches[0].clientX;
@@ -1054,9 +1092,11 @@
                     this._movePrev(e.touches[0].clientX, e.touches[0].clientY);
                 }
             }, { passive: false });
+
             D.addEventListener('touchend', e => {
                 if (this.s.isDragging) {
-                    this._end(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+                    const touch = e.changedTouches[0];
+                    this._end(touch.clientX, touch.clientY);
                 }
             });
 
