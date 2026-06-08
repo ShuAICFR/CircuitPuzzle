@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>电路维修-管理员“技忆”恢复训练 v1.1.7</title>
+    <style>
+        :root {
+            --bg: #0b0f1a;
+            --panel-bg: #131a2b;
+            --surface: #1c2538;
+            --surface-light: #263248;
+            --accent: #5a7d9c;
+            --accent-hover: #6b8fae;
+            --text: #d0d8e8;
+            --text-secondary: #8a94a6;
+            --cell-empty: #1a2332;
+            --cell-hover: #263448;
+            --cell-obstacle: #2a3340;
+            --preview-valid: #2ecc71;
+            --preview-invalid: #e74c3c;
+            --hint-highlight: rgba(46, 204, 113, 0.35);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+        }
+        .game-container,
+        .puzzle-grid,
+        .candidate-list,
+        .candidate-block,
+        .grid-cell {
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .game-container {
+            background: var(--panel-bg);
+            border-radius: 24px;
+            padding: 20px 24px;
+            max-width: 1000px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            min-height: 600px;
+        }
+        .game-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .game-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #7fa8c9, #a5c4d9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            white-space: nowrap;
+        }
+        .version-badge {
+            font-size: 0.7em;
+            background: var(--surface-light);
+            padding: 2px 8px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+        .settings-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 12px 16px;
+        }
+        .actions-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 12px 16px;
+        }
+        .setting-group { display: flex; align-items: center; gap: 6px; }
+        .setting-group label { font-size: 0.8em; color: var(--text-secondary); white-space: nowrap; }
+        .setting-group select {
+            background: var(--surface-light);
+            color: var(--text);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.8em;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+            font-family: inherit;
+        }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary { background: var(--surface-light); color: var(--text); }
+        .btn-secondary:hover { background: #31435c; }
+        .btn-warning { background: #d38b4a; color: #fff; }
+        .btn-small { padding: 6px 12px; font-size: 0.75em; }
+
+        .main-game-area {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .grid-area-container {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 2px;
+            background: #0a0f18;
+            border-radius: 8px;
+            padding: 2px;
+        }
+        .corner-empty { grid-row: 1; grid-column: 1; }
+        .col-hints { grid-row: 1; grid-column: 2; display: grid; gap: 2px; padding: 0; }
+        .row-hints { grid-row: 2; grid-column: 1; display: grid; gap: 2px; padding: 0; }
+        .puzzle-grid { grid-row: 2; grid-column: 2; display: grid; gap: 2px; padding: 0; }
+        .col-hint-cell, .row-hint-cell {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700;
+            color: var(--text); background: var(--surface); border-radius: 4px;
+            overflow: hidden; line-height: 1.2;
+        }
+        .col-hint-cell.satisfied, .row-hint-cell.satisfied { color: #2ecc71; background: #1a3b2e; }
+        .col-hint-cell.overshot, .row-hint-cell.overshot { color: #e74c3c; background: #3b1a1a; }
+
+        .grid-cell {
+            background: var(--cell-empty); border-radius: 5px; cursor: crosshair;
+            aspect-ratio: 1 / 1; transition: background 0.15s;
+        }
+        .grid-cell.obstacle { background: var(--cell-obstacle); cursor: not-allowed; }
+        .grid-cell.filled { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); }
+        .grid-cell.preview-valid { background: var(--preview-valid); }
+        .grid-cell.preview-invalid { background: var(--preview-invalid); }
+        .grid-cell.hint-highlight { background: var(--hint-highlight); box-shadow: inset 0 0 0 2px rgba(46, 204, 113, 0.5); }
+
+        .candidate-panel { background: var(--surface); border-radius: 16px; padding: 14px; min-width: 180px; max-width: 320px; }
+        .candidate-list { display: flex; flex-wrap: wrap; gap: 10px; max-height: 380px; overflow-y: auto; }
+        .candidate-block {
+            cursor: grab; padding: 6px; border-radius: 12px; background: var(--surface-light);
+            border: 2px solid transparent; transition: transform 0.15s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .candidate-block.selected {
+            border-color: var(--accent); transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(90,125,156,0.5); animation: pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100% { box-shadow: 0 0 8px rgba(90,125,156,0.4); } 50% { box-shadow: 0 0 20px rgba(90,125,156,0.8); } }
+        .block-mini-cell { border-radius: 3px; }
+
+        .drag-ghost {
+            position: fixed; pointer-events: none; z-index: 1000; opacity: 0.85;
+            display: grid; gap: 2px; border-radius: 8px; padding: 5px;
+            background: rgba(0,0,0,0.5); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform: translate(-50%, -50%);
+        }
+        .ghost-cell { border-radius: 4px; background: transparent; }
+
+        .mobile-controls { display: none; justify-content: center; gap: 12px; padding: 12px; background: var(--surface); border-radius: 12px; }
+        .mobile-controls.active { display: flex; }
+
+        .victory-overlay, .help-overlay, .algo-overlay, .shapes-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.75);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+        }
+        .victory-dialog, .help-dialog, .algo-dialog, .shapes-dialog {
+            background: var(--panel-bg); border-radius: 24px; padding: 32px; text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7); max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto;
+        }
+        .victory-title { font-size: 1.4em; color: #f0c040; margin-bottom: 16px; }
+        .help-title, .algo-title, .shapes-title { font-size: 1.6em; color: var(--accent); margin-bottom: 20px; }
+        .help-content, .algo-content { text-align: left; font-size: 0.9em; line-height: 1.6; color: var(--text); }
+        .shapes-section { margin-bottom: 24px; } .shapes-section h3 { color: var(--accent); margin-bottom: 12px; font-size: 1.1em; }
+        .shapes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 16px; }
+        .shape-entry { background: var(--surface-light); border-radius: 12px; padding: 12px; text-align: center; }
+        .shape-mini-grid { display: grid; gap: 1px; justify-content: center; margin-bottom: 6px; }
+        .shape-mini-cell { width: 16px; height: 16px; border-radius: 2px; background: transparent; }
+        .help-close, .algo-close, .shapes-close { margin-top: 20px; }
+
+        .author-info {
+            text-align: center; font-size: 0.8em; color: var(--text-secondary); margin-top: 8px; padding: 8px;
+        }
+
+        /* ---------- 手机模式 ---------- */
+        body.mobile-mode {
+            overflow: hidden; touch-action: manipulation; padding: 0; height: 100vh; display: flex; flex-direction: column;
+        }
+        body.mobile-mode .game-container {
+            border-radius: 0; padding: 0; gap: 0; min-height: 100vh; height: 100vh;
+            max-width: 100vw; overflow: hidden; display: flex; flex-direction: column;
+            padding-top: env(safe-area-inset-top, 0px);
+        }
+        body.mobile-mode .game-header {
+            padding: 24px 8px 4px 8px;
+            gap: 4px; flex-shrink: 0; background: var(--panel-bg); z-index: 10;
+        }
+        body.mobile-mode .game-title { font-size: 1em; }
+        body.mobile-mode .version-badge { font-size: 0.6em; }
+        body.mobile-mode .settings-panel { flex-shrink: 0; gap: 4px; padding: 6px 8px; flex-wrap: wrap; background: var(--panel-bg); }
+        body.mobile-mode .actions-row { display: none; }
+
+        body.mobile-mode .main-game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow: hidden;
+            min-height: 0;
+            align-items: center;          /* 水平居中 */
+            justify-content: center;      /* 垂直居中（若有剩余空间） */
+        }
+
+        body.mobile-mode .grid-area-container {
+            flex: 0 0 auto;               /* 不拉伸，尺寸由内容决定 */
+            margin: 0;                    /* 移除auto，由父flex居中 */
+            overflow: visible;
+            padding: 2px;
+            background: #0a0f18;
+            border-radius: 8px;
+            max-width: 100vw;
+            max-height: 100%;
+        }
+
+        body.mobile-mode .candidate-panel {
+            flex: 0 0 auto;
+            padding: 8px;
+            width: 100%;
+            max-width: 100%;
+            min-width: auto;
+            background: var(--panel-bg);
+            border-radius: 0;
+            height: 30vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+        body.mobile-mode .candidate-list {
+            gap: 8px;
+            max-height: unset;
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px;
+            scrollbar-width: thick;
+            scrollbar-color: var(--accent) var(--surface);
+            justify-content: center;
+            align-content: flex-start;
+        }
+        body.mobile-mode .candidate-list::-webkit-scrollbar { width: 8px; }
+        body.mobile-mode .candidate-list::-webkit-scrollbar-track { background: var(--surface); border-radius: 8px; }
+        body.mobile-mode .candidate-list::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 8px; }
+        body.mobile-mode .candidate-block {
+            height: auto;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body.mobile-mode .block-mini-grid {
+            display: grid;
+            gap: 2px;
+        }
+        body.mobile-mode .block-mini-cell {
+            width: 18px;
+            height: 18px;
+        }
+        body.mobile-mode .candidate-block .block-count {
+            display: none;
+        }
+        body.mobile-mode .mobile-controls { flex-shrink: 0; padding: 8px; gap: 8px; background: var(--panel-bg); }
+        body.mobile-mode .btn { padding: 5px 8px; font-size: 0.7em; }
+        body.mobile-mode .btn-small { padding: 4px 6px; font-size: 0.65em; }
+        body.mobile-mode .setting-group label { font-size: 0.65em; }
+        body.mobile-mode .setting-group select { padding: 4px 6px; font-size: 0.65em; }
+        body.mobile-mode .mobile-hide { display: none !important; }
+
+        /* 可拖拽菜单按钮 */
+        .mobile-menu-btn {
+            display: none;
+            position: fixed;
+            top: 60px;
+            left: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            font-size: 24px;
+            line-height: 48px;
+            text-align: center;
+            z-index: 1500;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            cursor: pointer;
+            touch-action: none;
+            transition: box-shadow 0.2s;
+        }
+        .mobile-menu-btn:active {
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+        }
+        .mobile-menu-overlay {
+            position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.75); z-index: 2000;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .mobile-menu-dialog {
+            background: var(--panel-bg); border-radius: 24px; padding: 24px; width: 80%; max-width: 320px;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .mobile-menu-dialog .btn { width: 100%; padding: 12px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <div class="game-header">
+        <div><span class="game-title">电路维修-管理员“技忆”恢复训练</span><span class="version-badge">v1.1.7</span></div>
+        <div class="status-bar" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+            <span>积分: <strong id="totalScoreDisplay">0</strong></span>
+            <span>剩余</span><span id="remainingBlocks">0</span>
+            <span id="colorMatchDisplay" style="display:flex; gap:12px;"></span>
+        </div>
+    </div>
+    <div class="settings-panel">
+        <div class="setting-group"><label>行</label><select id="rowsSelect"></select></div>
+        <div class="setting-group"><label>列</label><select id="colsSelect"></select></div>
+        <div class="setting-group"><label>难度</label><select id="difficultySelect"></select><span id="difficultyName"></span></div>
+        <div class="setting-group"><label>颜色</label><select id="colorModeSelect"><option value="single">单色</option><option value="dual" selected>双色</option><option value="triple">三色</option></select></div>
+        <button class="btn btn-primary" id="btnNewGame">新游戏</button>
+        <button class="btn btn-secondary" id="btnReset">重置</button>
+        <button class="btn btn-warning btn-small" id="btnHint">提示</button>
+        <button class="btn btn-secondary btn-small mobile-hide" id="btnToggleMode">切换为手机模式</button>
+        <button class="btn btn-secondary btn-small mobile-hide" id="btnHelp">使用说明</button>
+    </div>
+    <div class="actions-row mobile-hide">
+        <button class="btn btn-secondary btn-small" id="btnSave">💾 保存存档</button>
+        <button class="btn btn-secondary btn-small" id="btnLoad">📂 读取存档</button>
+        <button class="btn btn-secondary btn-small" id="btnExportMap">📤 下载地图</button>
+        <button class="btn btn-secondary btn-small" id="btnImportMap">📥 导入地图</button>
+        <button class="btn btn-secondary btn-small" id="btnDownloadHTML">📄 下载离线版</button>
+        <input type="file" id="loadFileInput" style="display:none" accept=".bin">
+        <input type="file" id="importMapInput" style="display:none" accept=".bin">
+    </div>
+    <div class="main-game-area">
+        <div class="grid-area-container">
+            <div class="corner-empty"></div>
+            <div class="col-hints" id="colHints"></div>
+            <div class="row-hints" id="rowHints"></div>
+            <div class="puzzle-grid" id="puzzleGrid"></div>
+        </div>
+        <div class="candidate-panel">
+            <div class="candidate-title">候选方块</div>
+            <div class="candidate-list" id="candidateList"></div>
+            <div style="text-align:center;font-size:0.7em;color:var(--text-secondary);">拖放 / 右键旋转 / R键旋转</div>
+        </div>
+    </div>
+    <div class="mobile-controls" id="mobileControls">
+        <button class="btn btn-primary btn-small" id="btnRotateMobile">旋转</button>
+        <button class="btn btn-primary" id="btnPlaceMobile">放置</button>
+        <button class="btn btn-secondary" id="btnCancelMobile">取消</button>
+    </div>
+</div>
+<div class="author-info">轮椅工作室-涵吾珑 &nbsp;|&nbsp; QQ群: 754973653 (电路维修程序交流群)</div>
+<div class="victory-overlay" id="victoryOverlay" style="display:none;">
+    <div class="victory-dialog"><div class="victory-title">恭喜完成!</div><div id="victoryScore"></div><button class="btn btn-primary" id="btnVictoryNewGame">再来一局</button></div>
+</div>
+<div class="help-overlay" id="helpOverlay" style="display:none;">
+    <div class="help-dialog">
+        <div class="help-title">📖 使用说明</div>
+        <div class="help-content">
+            <h3>游戏目标</h3><p>拖放候选方块填满网格，使每种颜色每行/列的填充数等于提示值。灰色格子为障碍。</p>
+            <h3>颜色模式</h3><p>单色、双色或三色。不同颜色独立计数，行列提示已分行显示。</p>
+            <h3>桌面操作</h3>
+            <p><strong>拖放：</strong>鼠标按住方块拖至网格。<br>
+            <strong>旋转：</strong>拖拽时按 <kbd>R</kbd> 键或右键点击网格区域。<br>
+            <strong>移除：</strong>点击已放置的方块可将其拿起并重新放置。<br>
+            <strong>提示：</strong>高亮可能正确的单元格（绿色半透明）。</p>
+            <h3>手机操作</h3>
+            <p><strong>选择方块：</strong>在底部候选区点击方块（选中后会有高亮边框）。<br>
+            <strong>放置：</strong>选中方块后点击网格空白处，方块会预览在对应位置，此时点击底部“放置”按钮完成放置。<br>
+            <strong>拖拽移动：</strong>也可直接按住候选方块拖动到网格上（与桌面类似），松开后进入预览，再点“放置”。<br>
+            <strong>重新拿起：</strong>点击网格上已放置的方块，它会回到手中（变为选中状态），可重新摆放。<br>
+            <strong>预览调整：</strong>在预览状态下，点击“旋转”按钮可旋转方块，拖动预览方块可移动位置。<br>
+            <strong>取消：</strong>点击“取消”按钮或点击其他区域可退出预览。<br>
+            <strong>菜单：</strong>左上角 ☰ 按钮可打开菜单，长按可拖拽移动位置。</p>
+            <h3>数据存储</h3><p>积分自动保存至浏览器本地存储，清除缓存会导致积分丢失。</p>
+            <p><a href="#" id="showAlgoLink" style="color:var(--accent);">查看实现</a> | <a href="#" id="showShapesFromHelp" style="color:var(--accent);">方块图鉴</a></p>
+        </div>
+        <button class="btn btn-primary help-close" id="btnHelpClose">关闭</button>
+    </div>
+</div>
+<div class="algo-overlay" id="algoOverlay" style="display:none;">
+    <div class="algo-dialog">
+        <div class="algo-title">核心算法实现细节</div>
+        <div class="algo-content" style="max-height:60vh; overflow-y:auto;">
+            <h3>谜题生成</h3><p>根据难度配置填充比例与障碍比例，先随机放置少量障碍，然后通过对称策略（竖直、水平、双向、中心或无）生成基础填充图案，确保目标填充格子分布均衡。随后贪心分解：从未覆盖格子出发，优先匹配最大尺寸的可用形状，形成方块并记录其覆盖的坐标；无法匹配的孤立格子转为障碍。最后依据颜色模式，将部分方块整块变色（保持覆盖坐标不变），更新各颜色的行列计数。整个过程保证候选方块能完整拼回目标图案，且性能优化（分解循环设有安全上限，失败自动重试）。</p>
+            <h3>提示算法</h3><p>基于当前各颜色的行列完成情况，计算剩余需求。按列优先排序，每列选择剩余需求最大的行格子进行高亮。若需求相同则随机选择，保证每次提示有随机性且不与当前放置冲突。高亮仅标记可能位置，不自动放置。</p>
+            <h3>拖拽与旋转</h3><p>使用固定定位的幽灵方块跟随鼠标，通过网格包围盒与单元格尺寸计算锚点实现对齐。旋转时根据记录的鼠标位置实时更新预览。已放置方块可被点击重新拿起，同样进入拖拽状态。</p>
+            <h3>存档加密</h3><p>存档使用简单的异或加密后保存为二进制文件，防止用户直接修改JSON内容。</p>
+            <h3>多色处理</h3><p>单色谜题生成并分解后，按颜色模式计算需变色的方块数量，随机选择方块将其颜色组与颜色替换，并重新计算对应颜色在网格中的分布与计数。</p>
+        </div>
+        <button class="btn btn-secondary algo-back" id="btnAlgoBack">返回</button>
+        <button class="btn btn-primary algo-close" id="btnAlgoClose">关闭</button>
+    </div>
+</div>
+<div class="shapes-overlay" id="shapesOverlay" style="display:none;">
+    <div class="shapes-dialog">
+        <div class="shapes-title">方块图鉴（按难度首次出现）</div>
+        <div id="shapesContainer"></div>
+        <button class="btn btn-secondary shapes-back" id="btnShapesBack">返回</button>
+        <button class="btn btn-primary shapes-close" id="btnShapesClose">关闭</button>
+    </div>
+</div>
+<div class="drag-ghost" id="dragGhost" style="display:none;"></div>
+
+<button id="mobileMenuBtn" class="mobile-menu-btn">☰</button>
+<div id="mobileMenuOverlay" class="mobile-menu-overlay" style="display:none;">
+    <div class="mobile-menu-dialog">
+        <button class="btn btn-secondary" id="menuToggleMode">切换为桌面模式</button>
+        <button class="btn btn-secondary" id="menuHelp">使用说明</button>
+        <button class="btn btn-secondary" id="menuSave">💾 保存存档</button>
+        <button class="btn btn-secondary" id="menuLoad">📂 读取存档</button>
+        <button class="btn btn-secondary" id="menuExportMap">📤 下载地图</button>
+        <button class="btn btn-secondary" id="menuImportMap">📥 导入地图</button>
+        <button class="btn btn-secondary" id="menuDownloadHTML">📄 下载离线版</button>
+        <button class="btn btn-primary" id="menuClose">关闭</button>
+    </div>
+</div>
+
+<script>
+(() => {
+    const BASE_SHAPES = [
+        { coords: [[0,0],[0,1],[0,2],[0,3]], minDiff: 1 },
+        { coords: [[0,0],[0,1],[1,0],[1,1]], minDiff: 1 },
+        { coords: [[0,0],[0,1],[0,2],[1,1]], minDiff: 1 },
+        { coords: [[0,1],[0,2],[1,0],[1,1]], minDiff: 1 },
+        { coords: [[0,0],[0,1],[1,1],[1,2]], minDiff: 1 },
+        { coords: [[0,0],[1,0],[2,0],[2,1]], minDiff: 1 },
+        { coords: [[0,1],[1,1],[2,0],[2,1]], minDiff: 1 },
+        { coords: [[0,0],[0,1]], minDiff: 1 },
+        { coords: [[0,0],[0,1],[0,2]], minDiff: 1 },
+        { coords: [[0,0],[1,0],[1,1]], minDiff: 1 },
+        { coords: [[0,0],[1,0],[2,0]], minDiff: 1 },
+        { coords: [[0,0],[1,0],[1,1],[2,0],[3,0]], minDiff: 5 },
+        { coords: [[0,0],[1,0],[2,0],[2,1],[3,0]], minDiff: 5 },
+        { coords: [[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1]], minDiff: 4 },
+        { coords: [[0,0],[0,1],[0,2],[1,0],[2,0]], minDiff: 4 },
+        { coords: [[0,0],[0,1],[0,2],[1,2],[2,1],[2,2]], minDiff: 6 },
+        { coords: [[0,0],[0,1],[0,2],[1,0],[2,0],[2,1]], minDiff: 5 },
+        { coords: [[0,0],[0,1],[1,0],[2,0],[2,1]], minDiff: 4 },
+        { coords: [[0,0],[0,1],[1,1],[1,2],[2,2]], minDiff: 5 },
+        { coords: [[0,1],[1,0],[1,1],[1,2],[2,1]], minDiff: 4 },
+        { coords: [[0,0],[0,1],[1,0],[2,0],[2,1],[3,0]], minDiff: 6 },
+        { coords: [[0,0],[1,0],[1,1],[2,0],[3,0],[3,1]], minDiff: 6 },
+        { coords: [[0,0],[0,1],[1,1],[1,2],[2,1],[2,2]], minDiff: 7 },
+        { coords: [[0,0],[1,0],[1,1],[1,2],[2,1],[2,2]], minDiff: 7 }
+    ];
+    const BLUE_COLORS = ['#4a667a','#4e6b7c','#527080','#5b7585','#607a8a','#668090','#6c8a9a','#728fa0','#7a94a2','#809aa8','#86a0ae','#8ca5b4','#92aaba','#98b0c0','#9eb5c6'];
+    const GREEN_COLORS = ['#4a6b60','#4e7065','#52756a','#577a6f','#5c7f74','#618479','#668980','#6c8e87','#72938e','#789895','#7e9d9c','#84a2a1','#8aa7a7','#90acad','#96b1b2'];
+    const YELLOW_COLORS = ['#8a6a4a','#8f6f4e','#947452','#9a7956','#9f7e5a','#a4835e','#a98862','#ae8d66','#b3926a','#b8976e','#bd9c72','#c2a176','#c7a67a','#ccab7e','#d1b082'];
+    const LEVELS = [
+        { name:'无脑', fillRatio:0.25, obsRatio:0.02, maxS:3, minS:2, randomRot: false },
+        { name:'简单', fillRatio:0.30, obsRatio:0.03, maxS:3, minS:2, randomRot: false },
+        { name:'简单', fillRatio:0.35, obsRatio:0.04, maxS:3, minS:2, randomRot: false },
+        { name:'中等', fillRatio:0.40, obsRatio:0.03, maxS:4, minS:2, randomRot: true },
+        { name:'中等', fillRatio:0.45, obsRatio:0.02, maxS:4, minS:2, randomRot: true },
+        { name:'困难', fillRatio:0.50, obsRatio:0.02, maxS:4, minS:2, randomRot: true },
+        { name:'困难', fillRatio:0.55, obsRatio:0.01, maxS:4, minS:3, randomRot: true },
+        { name:'梦魇', fillRatio:0.62, obsRatio:0.01, maxS:4, minS:3, randomRot: true },
+        { name:'梦魇', fillRatio:0.68, obsRatio:0.00, maxS:4, minS:4, randomRot: true },
+        { name:'终焉', fillRatio:0.75, obsRatio:0.00, maxS:4, minS:4, randomRot: true }
+    ];
+    const SYMMETRY = { vertical: 0.15, horizontal: 0.15, both: 0.10, central: 0.25, none: 0.35 };
+    const ENCRYPT_KEY = 0xA3;
+
+    const U = {
+        rand:(a,b)=>Math.floor(Math.random()*(b-a+1))+a,
+        pick:a=>a[Math.floor(Math.random()*a.length)],
+        shuffle:a=>{const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}return b;},
+        norm:c=>{const r=Math.min(...c.map(d=>d[0])),c_=Math.min(...c.map(d=>d[1]));return c.map(([y,x])=>[y-r,x-c_]);},
+        rot:c=>U.norm(c.map(([y,x])=>[x,-y])),
+        box:c=>({h:Math.max(...c.map(d=>d[0]))-Math.min(...c.map(d=>d[0]))+1,w:Math.max(...c.map(d=>d[1]))-Math.min(...c.map(d=>d[1]))+1}),
+        canonicalShape(coords) {
+            let best = U.norm(coords);
+            let cur = best;
+            for (let i = 0; i < 4; i++) {
+                cur = U.rot(cur);
+                const key1 = JSON.stringify(cur);
+                const key2 = JSON.stringify(best);
+                if (key1 < key2) best = cur;
+            }
+            return best;
+        },
+        getShapesForDifficulty(difficulty, rows, cols, minSize, maxSize) {
+            const shapes = [];
+            for (const s of BASE_SHAPES) {
+                if (difficulty < s.minDiff) continue;
+                const shape = U.norm(s.coords);
+                const bbox = U.box(shape);
+                if (bbox.h > rows || bbox.w > cols) continue;
+                if (shape.length < minSize || shape.length > maxSize) continue;
+                const seen = new Set();
+                let cur = shape;
+                for (let i = 0; i < 4; i++) {
+                    const key = JSON.stringify(cur);
+                    if (!seen.has(key)) { seen.add(key); shapes.push({ coords: cur }); }
+                    cur = U.rot(cur);
+                }
+            }
+            return shapes;
+        },
+        chooseSymmetry(){const r=Math.random();let c=0;for(const[t,p]of Object.entries(SYMMETRY)){c+=p;if(r<c)return t;}return'none';},
+        encryptArrayBuffer(b){const d=new Uint8Array(b);for(let i=0;i<d.length;i++)d[i]^=ENCRYPT_KEY;return b;},
+        decryptArrayBuffer(b){return U.encryptArrayBuffer(b);},
+        saveToFile(d,n){const j=JSON.stringify(d),enc=U.encryptArrayBuffer(new TextEncoder().encode(j).buffer.slice(0)),blob=new Blob([new Uint8Array(enc)],{type:'application/octet-stream'});const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=n;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);},
+        loadFromFile(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{try{const dec=U.decryptArrayBuffer(r.result),json=new TextDecoder().decode(new Uint8Array(dec));res(JSON.parse(json));}catch(e){rej(e);}};r.onerror=rej;r.readAsArrayBuffer(f);});},
+        getColorPool(color) {
+            if (color === 'green') return GREEN_COLORS;
+            if (color === 'yellow') return YELLOW_COLORS;
+            return BLUE_COLORS;
+        }
+    };
+
+    class Puzzle {
+        constructor(r,c,d,colorMode){this.r=r;this.c=c;this.d=d;this.cfg=LEVELS[d-1];this.colorMode=colorMode;}
+        gen(){
+            const {r,c,cfg}=this;
+            const total = r*c;
+            const maxO = Math.floor(total * cfg.obsRatio);
+            const obstacle = Array(r).fill().map(()=>Array(c).fill(false));
+            const allCells = U.shuffle(Array.from({length:total},(_,i)=>[Math.floor(i/c),i%c]));
+            for(let i=0; i<maxO; i++) { const [y,x]=allCells[i]; obstacle[y][x] = true; }
+            const freeCells = total - maxO;
+            const fillCount = Math.floor(freeCells * cfg.fillRatio);
+            const targetBlue = Array(r).fill().map(()=>Array(c).fill(0));
+            const symType = U.chooseSymmetry();
+            const filled = new Set();
+            const apply = (y,x) => { if(filled.has(`${y},${x}`)) return; filled.add(`${y},${x}`); targetBlue[y][x]=1; };
+            if(symType==='vertical'&&c>1){const axis=Math.floor(c/2);for(let y=0;y<r;y++)for(let x=0;x<axis;x++)if(Math.random()<0.3&&filled.size<fillCount*0.5){apply(y,x);apply(y,c-1-x);}}
+            else if(symType==='horizontal'&&r>1){const axis=Math.floor(r/2);for(let x=0;x<c;x++)for(let y=0;y<axis;y++)if(Math.random()<0.3&&filled.size<fillCount*0.5){apply(y,x);apply(r-1-y,x);}}
+            else if(symType==='both'&&r>1&&c>1){const axisR=Math.floor(r/2),axisC=Math.floor(c/2);for(let y=0;y<axisR;y++)for(let x=0;x<axisC;x++)if(Math.random()<0.2&&filled.size<fillCount*0.5){apply(y,x);apply(r-1-y,x);apply(y,c-1-x);apply(r-1-y,c-1-x);}}
+            else if(symType==='central'&&r>1&&c>1){const cr=Math.round((r-1)/2),cc=Math.round((c-1)/2);for(let y=0;y<r;y++)for(let x=0;x<c;x++)if(Math.random()<0.25&&filled.size<fillCount*0.5){const my=Math.round(2*cr-y),mx=Math.round(2*cc-x);if(my>=0&&mx>=0){apply(y,x);apply(my,mx);}}}
+            const avail = allCells.filter(([y,x])=>!obstacle[y][x]&&!filled.has(`${y},${x}`));
+            const need = fillCount - filled.size;
+            const shuffled = U.shuffle(avail);
+            for(let i=0; i<Math.min(need,shuffled.length); i++){ const [y,x]=shuffled[i]; targetBlue[y][x]=1; filled.add(`${y},${x}`); }
+            for(let y=0; y<r; y++) if(targetBlue[y].every(v=>v===0)){const cand=[];for(let x=0;x<c;x++)if(!obstacle[y][x])cand.push(x);if(cand.length)targetBlue[y][U.pick(cand)]=1;}
+            for(let x=0; x<c; x++) if(targetBlue.every(row=>row[x]===0)){const cand=[];for(let y=0;y<r;y++)if(!obstacle[y][x])cand.push(y);if(cand.length)targetBlue[U.pick(cand)][x]=1;}
+            const shapesCache = U.getShapesForDifficulty(this.d, r, c, cfg.minS, cfg.maxS);
+            const playerBlocks = [];
+            const unc = new Set();
+            for(let y=0;y<r;y++)for(let x=0;x<c;x++)if(targetBlue[y][x])unc.add(`${y},${x}`);
+            let safety = 2000;
+            while(unc.size > 0 && safety-- > 0){
+                const arr = Array.from(unc).map(s=>s.split(',').map(Number));
+                let best = null, bestCover = [];
+                for(const [ay,ax] of U.shuffle(arr)){
+                    if(!unc.has(`${ay},${ax}`)) continue;
+                    for(const s of shapesCache){
+                        const cov = []; let ok = true;
+                        for(const [dy,dx] of s.coords){const ny=ay+dy,nx=ax+dx;if(ny<0||ny>=r||nx<0||nx>=c||obstacle[ny][nx]||!unc.has(`${ny},${nx}`)){ok=false;break;}cov.push(`${ny},${nx}`);}
+                        if(ok&&(!best||cov.length>bestCover.length)){best={ar:ay,ac:ax,coords:s.coords,cells:cov};bestCover=cov;}
+                    }
+                }
+                if(best){
+                    for(const k of best.cells) unc.delete(k);
+                    let shape = best.coords;
+                    if(cfg.randomRot){const rots=[shape];let cur=shape;for(let i=0;i<3;i++){cur=U.rot(cur);rots.push([...cur]);}shape=U.pick(rots);}
+                    const cells = best.cells.map(k=>k.split(',').map(Number));
+                    playerBlocks.push({id:'p_'+Math.random(),shape,color:'#4a667a',colorGroup:'blue',used:false,placedAt:null,cells});
+                } else {
+                    const k = Array.from(unc)[0]; const [y,x]=k.split(',').map(Number);
+                    obstacle[y][x]=true; targetBlue[y][x]=0; unc.delete(k);
+                }
+            }
+            if (safety <= 0 || playerBlocks.length === 0) throw new Error('生成失败');
+            const colors = this.colorMode==='single'?['blue']:this.colorMode==='dual'?['blue','green']:['blue','green','yellow'];
+            if(colors.length>1){
+                const blocksToChange = Math.floor(playerBlocks.length / colors.length) * (colors.length-1);
+                const indices = U.shuffle(Array.from({length:playerBlocks.length},(_,i)=>i)).slice(0, blocksToChange);
+                for(let i=0;i<indices.length;i++){
+                    const idx = indices[i];
+                    const newColor = colors[1 + (i % (colors.length-1))];
+                    playerBlocks[idx].colorGroup = newColor;
+                    const pool = U.getColorPool(newColor);
+                    playerBlocks[idx].color = pool[Math.floor(Math.random()*pool.length)];
+                }
+            }
+            const target = { blue: Array(r).fill().map(()=>Array(c).fill(0)), green: Array(r).fill().map(()=>Array(c).fill(0)), yellow: Array(r).fill().map(()=>Array(c).fill(0)) };
+            for(const b of playerBlocks){
+                const t = target[b.colorGroup];
+                for(const [y,x] of b.cells) t[y][x] = 1;
+            }
+            const rowCounts = { blue: [], green: [], yellow: [] };
+            const colCounts = { blue: [], green: [], yellow: [] };
+            for(const color of ['blue','green','yellow']){
+                const t = target[color];
+                rowCounts[color] = t.map(rw=>rw.reduce((a,b)=>a+b,0));
+                colCounts[color] = Array(c).fill(0);
+                for(let x=0;x<c;x++)for(let y=0;y<r;y++)colCounts[color][x] += t[y][x];
+            }
+            return {
+                rows:r, cols:c, difficulty:this.d, colorMode:this.colorMode,
+                target, obstacle, rowCounts, colCounts,
+                playerBlocks, totalFill:fillCount
+            };
+        }
+    }
+
+    class State {
+        constructor(){this.reset();}
+        reset(){Object.assign(this,{rows:6,cols:6,colorMode:'dual',target:null,obstacle:null,rowC:{blue:[],green:[],yellow:[]},colC:{blue:[],green:[],yellow:[]},player:[],grid:null,gridColor:null,isDragging:false,dragBlock:null,dragShape:null,selected:null,preview:null,previewR:-1,previewC:-1,mobile:false,hintCells:new Set(),lastMX:0,lastMY:0,rightClicked:false,draggedBlockId:null});}
+        init(p){
+            this.rows=p.rows; this.cols=p.cols; this.colorMode=p.colorMode;
+            this.target=p.target; this.obstacle=p.obstacle;
+            this.rowC = p.rowCounts; this.colC = p.colCounts;
+            this.player = p.playerBlocks.map(b=>({...b, used: false, placedAt: null, cells: b.cells}));
+            this.grid = Array(this.rows).fill().map(()=>Array(this.cols).fill(null));
+            this.gridColor = Array(this.rows).fill().map(()=>Array(this.cols).fill(null));
+            this.isDragging=false;this.selected=null;this.preview=null;this.hintCells.clear();
+        }
+        initFromMap(data){
+            this.rows=data.rows; this.cols=data.cols; this.colorMode=data.colorMode||'dual';
+            this.target=data.target; this.obstacle=data.obstacle;
+            this.rowC=data.rowCounts; this.colC=data.colCounts;
+            this.player=data.playerBlocks.map(b=>({...b, used: false, placedAt: null, cells: b.cells}));
+            this.grid=Array(this.rows).fill().map(()=>Array(this.cols).fill(null));
+            this.gridColor=Array(this.rows).fill().map(()=>Array(this.cols).fill(null));
+            this.hintCells.clear();
+        }
+        activeColors(){ return this.colorMode === 'single' ? ['blue'] : this.colorMode === 'dual' ? ['blue','green'] : ['blue','green','yellow']; }
+        unused(){return this.player.filter(b=>!b.used && b.id !== this.draggedBlockId);}
+        canPlace(shape,ar,ac){
+            for(const[dy,dx]of shape){const y=ar+dy,x=ac+dx;if(y<0||y>=this.rows||x<0||x>=this.cols||this.obstacle[y][x]||this.grid[y][x]!==null)return false;}
+            return true;
+        }
+        place(b,ar,ac){b.used=true; b.placedAt={ar,ac};for(const[dy,dx]of b.shape){const y=ar+dy, x=ac+dx;this.grid[y][x]=b.id;this.gridColor[y][x]=b.colorGroup;}}
+        remove(b){if(!b.placedAt)return;for(const[dy,dx]of b.shape){const y=b.placedAt.ar+dy, x=b.placedAt.ac+dx;this.grid[y][x]=null;this.gridColor[y][x]=null;}b.used=false;b.placedAt=null;}
+        rowsNow(color){const c=Array(this.rows).fill(0);for(let y=0;y<this.rows;y++)for(let x=0;x<this.cols;x++)if(this.gridColor[y][x]===color)c[y]++;return c;}
+        colsNow(color){const c=Array(this.cols).fill(0);for(let x=0;x<this.cols;x++)for(let y=0;y<this.rows;y++)if(this.gridColor[y][x]===color)c[x]++;return c;}
+        win(){
+            for(const color of this.activeColors()){
+                const rn=this.rowsNow(color), cn=this.colsNow(color);
+                const rt=this.rowC[color], ct=this.colC[color];
+                if(!rt.every((v,i)=>v===rn[i]) || !ct.every((v,i)=>v===cn[i])) return false;
+            }
+            return true;
+        }
+        getMatch(color){
+            const rn=this.rowsNow(color), cn=this.colsNow(color);
+            const rt=this.rowC[color], ct=this.colC[color];
+            let rm=0, cm=0;
+            for(let i=0;i<this.rows;i++)if(rn[i]===rt[i])rm++;
+            for(let i=0;i<this.cols;i++)if(cn[i]===ct[i])cm++;
+            return {rm, cm, tr:this.rows, tc:this.cols};
+        }
+        saveData(ts){
+            return{
+                version:1.7, totalScore:ts, rows:this.rows, cols:this.cols, difficulty:this.difficulty, colorMode:this.colorMode,
+                target:this.target, obstacle:this.obstacle, rowCounts:this.rowC, colCounts:this.colC,
+                playerBlocks:this.player.map(b=>({id:b.id,shape:b.shape,color:b.color,colorGroup:b.colorGroup,used:b.used,placedAt:b.placedAt,cells:b.cells})),
+                grid:this.grid, gridColor:this.gridColor, hintCells:[...this.hintCells]
+            };
+        }
+        loadSaveData(d){
+            this.rows=d.rows; this.cols=d.cols; this.difficulty=d.difficulty; this.colorMode=d.colorMode||'dual';
+            this.target=d.target; this.obstacle=d.obstacle;
+            this.rowC=d.rowCounts; this.colC=d.colCounts;
+            this.player=d.playerBlocks.map(b=>({...b, cells: b.cells}));
+            this.grid=d.grid; this.gridColor=d.gridColor;
+            this.hintCells=new Set(d.hintCells||[]);
+        }
+    }
+
+    class Renderer {
+        constructor(s){this.s=s;this.ge=id('puzzleGrid');this.rh=id('rowHints');this.ch=id('colHints');this.cl=id('candidateList');this.gh=id('dragGhost');this.mc=id('mobileControls');}
+        all(pre=null,pr=-1,pc=-1,pv=false){this.grid(pre,pr,pc,pv);this.hints();this.cands();this.status();}
+        grid(pre,pr,pc,pv){
+            const {rows,cols,grid,obstacle,hintCells}=this.s;
+            // 桌面端使用1fr，手机端由_adjustGridSize设置px，这里只设置列数
+            this.ge.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+            const pSet=new Set(); if(pre&&pr>=0)for(const[dy,dx]of pre){const y=pr+dy,x=pc+dx;if(y>=0&&y<rows&&x>=0&&x<cols)pSet.add(`${y},${x}`);}
+            let h=''; const cm={}; for(const b of this.s.player)if(b.used)cm[b.id]=b.color;
+            for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+                let cls='grid-cell', st='';
+                if(obstacle[y][x])cls+=' obstacle';
+                else if(grid[y][x]){cls+=' filled';st=`background:${cm[grid[y][x]]||'#5a7d9c'}`;}
+                else if(pSet.has(`${y},${x}`))cls+=pv?' preview-valid':' preview-invalid';
+                else if(hintCells.has(`${y},${x}`))cls+=' hint-highlight';
+                h+=`<div class="${cls}" style="${st}" data-row="${y}" data-col="${x}"></div>`;
+            }
+            this.ge.innerHTML=h;
+        }
+        hints(){
+            const colors = this.s.activeColors();
+            const rnAll = {}; const cnAll = {};
+            for(const c of colors){ rnAll[c]=this.s.rowsNow(c); cnAll[c]=this.s.colsNow(c); }
+            this.rh.style.gridTemplateRows=`repeat(${this.s.rows},1fr)`;
+            this.rh.innerHTML = Array.from({length:this.s.rows},(_,r)=>{
+                const parts = colors.map(c=>`<div style="color:${c==='blue'?'#7fa8c9':c==='green'?'#7fc9a8':'#c9c97f'}">${rnAll[c][r]}/${this.s.rowC[c][r]}</div>`).join('');
+                const allMatch = colors.every(c=>rnAll[c][r]===this.s.rowC[c][r]);
+                const anyOver = colors.some(c=>rnAll[c][r]>this.s.rowC[c][r]);
+                let cls = 'row-hint-cell';
+                if(allMatch) cls += ' satisfied';
+                if(anyOver) cls += ' overshot';
+                return `<div class="${cls}">${parts}</div>`;
+            }).join('');
+            this.ch.style.gridTemplateColumns=`repeat(${this.s.cols},1fr)`;
+            this.ch.innerHTML = Array.from({length:this.s.cols},(_,c)=>{
+                const parts = colors.map(co=>`<div style="color:${co==='blue'?'#7fa8c9':co==='green'?'#7fc9a8':'#c9c97f'}">${cnAll[co][c]}/${this.s.colC[co][c]}</div>`).join('');
+                const allMatch = colors.every(co=>cnAll[co][c]===this.s.colC[co][c]);
+                const anyOver = colors.some(co=>cnAll[co][c]>this.s.colC[co][c]);
+                let cls = 'col-hint-cell';
+                if(allMatch) cls += ' satisfied';
+                if(anyOver) cls += ' overshot';
+                return `<div class="${cls}">${parts}</div>`;
+            }).join('');
+        }
+        cands(sel=null){
+            const un=this.s.unused(); if(!un.length){this.cl.innerHTML='<div style="padding:16px;color:var(--text-secondary);">所有方块已放置</div>';return;}
+            const isMobile = this.s.mobile;
+            this.cl.innerHTML=un.map(b=>{
+                const {w,h}=U.box(b.shape);
+                const s = isMobile ? 18 : 20;
+                const gridStyle = `display:grid; grid-template-columns:repeat(${w},${s}px); gap:2px;`;
+                const cellStyle = `width:${s}px; height:${s}px;`;
+                const gridHtml = Array(h).fill().map(()=>Array(w).fill(0));
+                b.shape.forEach(([y,x])=>gridHtml[y][x]=1);
+                const cellsHtml = gridHtml.flat().map(v=>`<div class="block-mini-cell" style="${cellStyle}${v?`background:${b.color}`:''}"></div>`).join('');
+                const countHtml = isMobile ? '' : `<div class="block-count" style="font-size:0.7em;">${b.shape.length}格</div>`;
+                return `<div class="candidate-block${b.id===sel?' selected':''}" data-block-id="${b.id}">
+                    <div class="block-mini-grid" style="${gridStyle}">${cellsHtml}</div>
+                    ${countHtml}
+                </div>`;
+            }).join('');
+        }
+        status(){
+            const colors = this.s.activeColors();
+            const display = document.getElementById('colorMatchDisplay');
+            display.innerHTML = colors.map(c=>{
+                const m = this.s.getMatch(c);
+                return `<span style="color:${c==='blue'?'#7fa8c9':c==='green'?'#7fc9a8':'#c9c97f'}">${c==='blue'?'蓝':c==='green'?'绿':'黄'} ${m.rm}/${m.tr},${m.cm}/${m.tc}</span>`;
+            }).join(' ');
+            document.getElementById('remainingBlocks').textContent=this.s.unused().length;
+        }
+        ghost(sh,clr,mx,my,sz=42){const {w,h}=U.box(sh);const s=Math.max(28,Math.min(sz,44));this.gh.style.display='grid';this.gh.style.gridTemplateColumns=`repeat(${w},${s}px)`;this.gh.style.left=mx+'px';this.gh.style.top=my+'px';const set=new Set(sh.map(([y,x])=>`${y},${x}`));this.gh.innerHTML=Array.from({length:h},(_,y)=>Array.from({length:w},(_,x)=>`<div class="ghost-cell" style="width:${s}px;height:${s}px;${set.has(`${y},${x}`)?`background:${clr}`:''}"></div>`).join('')).join('');}
+        hideGhost(){this.gh.style.display='none';}
+        mobile(on){this.mc.classList.toggle('active',on);}
+    }
+
+    const id=s=>document.getElementById(s);
+    class Game {
+        constructor(){
+            this.s=new State(); this.r=new Renderer(this.s); this.cs=42;
+            this.totalScore=0; this._loadScore(); this._updateScoreDisplay();
+            this._init(); this._ev(); this._detect();
+        }
+        _loadScore(){try{const s=localStorage.getItem('blockPuzzleScore');if(s)this.totalScore=parseInt(s,10)||0;}catch(e){}}
+        _saveScore(){localStorage.setItem('blockPuzzleScore',this.totalScore.toString());this._updateScoreDisplay();}
+        _updateScoreDisplay(){id('totalScoreDisplay').textContent=this.totalScore;}
+        _init(){
+            const rs=id('rowsSelect'),cs=id('colsSelect');
+            for(let i=3;i<=10;i++){rs.innerHTML+=`<option value="${i}" ${i===6?'selected':''}>${i}</option>`;cs.innerHTML+=`<option value="${i}" ${i===6?'selected':''}>${i}</option>`;}
+            const ds=id('difficultySelect');
+            for(let i=1;i<=10;i++){const o=document.createElement('option');o.value=i;o.textContent=i;if(i===5)o.selected=true;ds.appendChild(o);}
+            this._updateDiffName(); ds.addEventListener('change',()=>this._updateDiffName());
+            this._initShapesTable();
+        }
+        _updateDiffName(){const l=parseInt(id('difficultySelect').value);id('difficultyName').textContent=LEVELS[l-1].name;}
+        _detect(){
+            this.s.mobile = window.innerWidth <= 768;
+            document.body.classList.toggle('mobile-mode', this.s.mobile);
+            document.getElementById('mobileMenuBtn').style.display = this.s.mobile ? 'block' : 'none';
+            this._modeUI();
+            if (this.s.mobile) {
+                this._adjustGridSize();
+            } else {
+                // 桌面端恢复默认
+                this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                this.r.ge.style.gridTemplateRows = '';
+                this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, 1fr)`;
+                this.r.rh.style.gridAutoColumns = '';
+                this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                this.r.ch.style.gridAutoRows = '';
+                const corner = document.querySelector('.corner-empty');
+                if (corner) { corner.style.width = ''; corner.style.height = ''; }
+                document.querySelectorAll('.col-hint-cell, .row-hint-cell').forEach(el => {
+                    el.style.fontSize = '';
+                    el.style.lineHeight = '';
+                    el.style.height = '';
+                });
+            }
+        }
+        _modeUI(){
+            id('btnToggleMode').textContent=this.s.mobile?'切换为桌面模式':'切换为手机模式';
+            this.r.mobile(false);
+            this.s.preview=null;
+            if(!this.s.isDragging)this.r.all();
+        }
+        _adjustGridSize() {
+            if (!this.s.mobile) return;
+            const mainArea = document.querySelector('.main-game-area');
+            const container = this.r.ge.parentElement; // grid-area-container
+            const corner = container.querySelector('.corner-empty');
+            const gap = 2;
+
+            // 获取主区域可用空间（减去候选区高度和padding等）
+            const mainWidth = mainArea.clientWidth;
+            const mainHeight = mainArea.clientHeight;
+            const candidateHeight = mainArea.querySelector('.candidate-panel').offsetHeight;
+            const controlsHeight = document.getElementById('mobileControls').offsetHeight;
+            const verticalPadding = 16; // 上下内边距
+            const availHeight = mainHeight - candidateHeight - controlsHeight - verticalPadding;
+
+            // 先估算一个初始cellSize
+            let cellSize = 42;
+            // 逐步计算，确保网格+提示不超出可用空间
+            for (let trySize = 42; trySize >= 12; trySize--) {
+                const totalGridWidth = trySize * this.s.cols + gap * (this.s.cols - 1);
+                const totalGridHeight = trySize * this.s.rows + gap * (this.s.rows - 1);
+                const cornerSize = trySize;
+                const rowHintWidth = trySize; // 行提示宽度等于格子大小
+                const colHintHeight = trySize;
+                const neededWidth = cornerSize + rowHintWidth + totalGridWidth + 4; // padding
+                const neededHeight = cornerSize + colHintHeight + totalGridHeight + 4;
+                if (neededWidth <= mainWidth && neededHeight <= availHeight) {
+                    cellSize = trySize;
+                    break;
+                }
+            }
+            cellSize = Math.max(cellSize, 12);
+
+            // 应用尺寸
+            this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
+            this.r.ge.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
+
+            corner.style.width = `${cellSize}px`;
+            corner.style.height = `${cellSize}px`;
+
+            this.r.rh.style.gridAutoColumns = `${cellSize}px`;
+            this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
+            this.r.ch.style.gridAutoRows = `${cellSize}px`;
+            this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
+
+            // 设置提示单元格样式
+            const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
+            hintCells.forEach(el => {
+                el.style.width = `${cellSize}px`;
+                el.style.height = `${cellSize}px`;
+                el.style.lineHeight = `${cellSize}px`;
+                el.style.overflow = 'hidden';
+            });
+
+            // 自适应字体大小
+            let fontSize = Math.floor(cellSize * 0.3);
+            for (const cell of hintCells) {
+                cell.style.fontSize = `${fontSize}px`;
+            }
+            let safety = 0;
+            while (safety < 10) {
+                let overflow = false;
+                for (const cell of hintCells) {
+                    if (cell.scrollWidth > cell.clientWidth || cell.scrollHeight > cell.clientHeight) {
+                        overflow = true;
+                        break;
+                    }
+                }
+                if (!overflow) break;
+                fontSize = Math.max(6, fontSize - 1);
+                for (const cell of hintCells) {
+                    cell.style.fontSize = `${fontSize}px`;
+                }
+                safety++;
+            }
+
+            this.cs = cellSize;
+            this.r.all();
+        }
+        _initShapesTable(){
+            const container = id('shapesContainer');
+            const uniqueMap = new Map();
+            for (const s of BASE_SHAPES) {
+                const canonical = U.canonicalShape(s.coords);
+                const key = JSON.stringify(canonical);
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, { coords: canonical, minDiff: s.minDiff });
+                } else {
+                    const exist = uniqueMap.get(key);
+                    if (s.minDiff < exist.minDiff) exist.minDiff = s.minDiff;
+                }
+            }
+            const uniqueShapes = Array.from(uniqueMap.values());
+            const groups = {};
+            for (let d = 1; d <= 10; d++) groups[d] = [];
+            for (const shape of uniqueShapes) groups[shape.minDiff].push(shape);
+            let html = '';
+            for (let d = 1; d <= 10; d++) {
+                const shapes = groups[d];
+                if (shapes.length === 0) continue;
+                html += `<div class="shapes-section"><h3>难度 ${d}</h3><div class="shapes-grid">`;
+                for (const s of shapes) {
+                    const {w,h}=U.box(s.coords);
+                    const grid=Array(h).fill().map(()=>Array(w).fill(0));
+                    s.coords.forEach(([y,x])=>grid[y][x]=1);
+                    html += `<div class="shape-entry">
+                        <div class="shape-mini-grid" style="grid-template-columns:repeat(${w},16px);gap:1px;">
+                            ${grid.flat().map(v=>`<div class="shape-mini-cell" style="background:${v?'#5a7d9c':''}"></div>`).join('')}
+                        </div>
+                    </div>`;
+                }
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+        newGame(retry=5){
+            const r=+id('rowsSelect').value,c=+id('colsSelect').value,d=parseInt(id('difficultySelect').value);
+            const mode = id('colorModeSelect').value;
+            const attempt = () => {
+                try {
+                    const p = new Puzzle(r,c,d,mode).gen();
+                    this.s.init(p);
+                    this.s.selected=null;
+                    this.r.hideGhost();
+                    this.r.mobile(false);
+                    this.r.all();
+                    this._upCS();
+                    if (this.s.mobile) this._adjustGridSize();
+                    else {
+                        this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                        this.r.ge.style.gridTemplateRows = '';
+                    }
+                    document.getElementById('victoryOverlay').style.display='none';
+                } catch (e) {
+                    if (retry > 0) setTimeout(() => this.newGame(retry-1), 20);
+                    else console.error('多次尝试生成失败');
+                }
+            };
+            setTimeout(attempt, 10);
+        }
+        reset(){for(const b of this.s.player.filter(b=>b.used))this.s.remove(b);this.s.selected=null;this.s.hintCells.clear();this.r.hideGhost();this.r.all();}
+        hint(){
+            const {rows,cols,target,obstacle,rowC,colC}=this.s;
+            const hintSet=new Set();
+            for(const color of this.s.activeColors()){
+                const rNeed=rowC[color].map((v,i)=>v-this.s.rowsNow(color)[i]);
+                const cNeed=colC[color].map((v,i)=>v-this.s.colsNow(color)[i]);
+                const colOrder=Array.from({length:cols},(_,i)=>i).sort((a,b)=>cNeed[b]-cNeed[a]);
+                const rowRemain=[...rNeed];
+                for(const x of colOrder){
+                    if(cNeed[x]<=0)continue;
+                    const cands=[];
+                    for(let y=0;y<rows;y++)if(!obstacle[y][x]&&target[color][y][x]===1&&this.s.grid[y][x]===null&&rowRemain[y]>0)cands.push(y);
+                    const s=U.shuffle([...cands]).sort((a,b)=>rowRemain[b]-rowRemain[a]);
+                    for(let i=0;i<Math.min(cNeed[x],s.length);i++){const y=s[i];hintSet.add(`${y},${x}`);rowRemain[y]--;}
+                }
+            }
+            this.s.hintCells=hintSet; this.r.all();
+        }
+        _check(){if(this.s.win()){const g=this.s.rows*this.s.cols*parseInt(id('difficultySelect').value)*10;this.totalScore+=g;this._saveScore();id('victoryScore').textContent=`获得积分: +${g}  总积分: ${this.totalScore}`;setTimeout(()=>id('victoryOverlay').style.display='flex',300);}}
+        _upCS(){const c=this.r.ge.querySelector('.grid-cell');if(c)this.cs=c.getBoundingClientRect().width||42;}
+        _anchor(mx,my,sh){
+            const rect=this.r.ge.getBoundingClientRect(); if(!rect)return null;
+            this._upCS(); const gap=2; const {rows,cols}=this.s, {w,h}=U.box(sh);
+            const rx=mx-rect.left, ry=my-rect.top;
+            const col=Math.round((rx-(w*this.cs+(w-1)*gap)/2)/(this.cs+gap));
+            const row=Math.round((ry-(h*this.cs+(h-1)*gap)/2)/(this.cs+gap));
+            const cr=Math.max(0,Math.min(rows-h,row)), cc=Math.max(0,Math.min(cols-w,col));
+            if(mx>=rect.left-20&&mx<=rect.right+20&&my>=rect.top-20&&my<=rect.bottom+20)return {row:cr,col:cc};
+            return null;
+        }
+        _ev(){
+            const D=document, G=this.r.ge, C=this.r.cl;
+
+            let candTouchStartX, candTouchStartY;
+            C.addEventListener('touchstart', e => {
+                if (!this.s.mobile) return;
+                if (e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                candTouchStartX = touch.clientX;
+                candTouchStartY = touch.clientY;
+            }, { passive: false });
+            C.addEventListener('touchend', e => {
+                if (!this.s.mobile) return;
+                const el = e.target.closest('.candidate-block');
+                if (!el || el.classList.contains('used')) return;
+                const touch = e.changedTouches[0];
+                const dx = touch.clientX - candTouchStartX;
+                const dy = touch.clientY - candTouchStartY;
+                if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+                    e.preventDefault();
+                    const blockId = el.dataset.blockId;
+                    if (this.s.selected === blockId) {
+                        this.s.selected = null;
+                    } else {
+                        this.s.selected = blockId;
+                    }
+                    if (this.s.preview) this._cancelPrev();
+                    this.r.cands(this.s.selected);
+                }
+            });
+
+            G.addEventListener('touchstart', e => {
+                if (!this.s.mobile) return;
+                if (e.touches.length !== 1) return;
+                e.preventDefault();
+                const touch = e.touches[0];
+                if (this.s.preview) {
+                    const block = this.s.player.find(b => b.id === this.s.preview);
+                    if (block && block._psh) {
+                        const shape = block._psh;
+                        const r = this.s.previewR, c = this.s.previewC;
+                        const cell = e.target.closest('.grid-cell');
+                        if (cell) {
+                            const cr = parseInt(cell.dataset.row), cc = parseInt(cell.dataset.col);
+                            const relR = cr - r, relC = cc - c;
+                            if (shape.some(([y,x]) => y === relR && x === relC)) {
+                                this.s.isDragging = true;
+                                this.s.dragBlock = block;
+                                this.s.dragShape = [...shape];
+                                this.s.draggedBlockId = block.id;
+                                this.s.preview = null;
+                                delete block._psh;
+                                this.r.mobile(false);
+                                this.s.lastMX = touch.clientX;
+                                this.s.lastMY = touch.clientY;
+                                this.r.ghost(shape, block.color, touch.clientX, touch.clientY, this.cs);
+                                this.r.grid();
+                                this.r.hints();
+                                return;
+                            }
+                        }
+                    }
+                    this._cancelPrev();
+                    return;
+                }
+                if (this.s.selected) {
+                    const block = this.s.player.find(b => b.id === this.s.selected && !b.used);
+                    if (!block) return;
+                    this.s.isDragging = true;
+                    this.s.dragBlock = block;
+                    this.s.dragShape = [...block.shape];
+                    this.s.draggedBlockId = block.id;
+                    this.s.lastMX = touch.clientX;
+                    this.s.lastMY = touch.clientY;
+                    this.r.ghost(block.shape, block.color, touch.clientX, touch.clientY, this.cs);
+                } else {
+                    const cell = e.target.closest('.grid-cell');
+                    if (!cell) return;
+                    const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+                    if (isNaN(r) || isNaN(c)) return;
+                    if (this.s.obstacle[r][c]) return;
+                    if (this.s.grid[r][c]) {
+                        const block = this.s.player.find(b => b.id === this.s.grid[r][c]);
+                        if (block) {
+                            this.s.remove(block);
+                            this.s.selected = block.id;
+                            this.s.isDragging = true;
+                            this.s.dragBlock = block;
+                            this.s.dragShape = [...block.shape];
+                            this.s.draggedBlockId = block.id;
+                            this.s.lastMX = touch.clientX;
+                            this.s.lastMY = touch.clientY;
+                            this.r.ghost(block.shape, block.color, touch.clientX, touch.clientY, this.cs);
+                            this.r.cands(block.id);
+                            this.r.grid();
+                            this.r.hints();
+                        }
+                    }
+                }
+            });
+            D.addEventListener('touchmove', e => {
+                if (!this.s.mobile) return;
+                if (!this.s.isDragging || e.touches.length !== 1) return;
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.s.lastMX = touch.clientX;
+                this.s.lastMY = touch.clientY;
+                const sh = this.s.dragShape, b = this.s.dragBlock;
+                this.r.ghost(sh, b.color, touch.clientX, touch.clientY, this.cs);
+                const a = this._anchor(touch.clientX, touch.clientY, sh);
+                if (a) {
+                    const v = this.s.canPlace(sh, a.row, a.col);
+                    this.r.grid(sh, a.row, a.col, v);
+                } else {
+                    this.r.grid();
+                }
+                this.r.hints();
+            });
+            D.addEventListener('touchend', e => {
+                if (!this.s.mobile) return;
+                if (!this.s.isDragging) return;
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                const sh = this.s.dragShape, b = this.s.dragBlock;
+                const a = this._anchor(touch.clientX, touch.clientY, sh);
+                if (a && this.s.canPlace(sh, a.row, a.col)) {
+                    this._setPrev(b, a.row, a.col, sh);
+                } else {
+                    this.s.isDragging = false;
+                    this.s.dragBlock = null;
+                    this.s.dragShape = null;
+                    this.s.draggedBlockId = null;
+                    this.r.hideGhost();
+                    this.r.grid();
+                    this.r.hints();
+                    this.r.cands(this.s.selected);
+                }
+            });
+
+            // 桌面端事件（保持不变）
+            C.addEventListener('mousedown', e => {
+                if (this.s.mobile) return;
+                const el = e.target.closest('.candidate-block');
+                if (!el || el.classList.contains('used')) return;
+                e.preventDefault();
+                this._start(el.dataset.blockId, e.clientX, e.clientY);
+            });
+            G.addEventListener('mousedown', e => {
+                if (this.s.mobile) return;
+                if (e.button !== 0) return;
+                if (this.s.isDragging) return;
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) return;
+                const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+                if (isNaN(r) || isNaN(c)) return;
+                if (this.s.obstacle[r][c]) return;
+                if (this.s.grid[r][c]) {
+                    e.preventDefault();
+                    const block = this.s.player.find(b => b.id === this.s.grid[r][c]);
+                    if (block) this._startRedrag(block, e.clientX, e.clientY);
+                }
+            });
+            D.addEventListener('mousemove', e => {
+                if (this.s.mobile) return;
+                this.s.lastMX = e.clientX; this.s.lastMY = e.clientY;
+                if (this.s.isDragging) { e.preventDefault(); this._drag(e.clientX, e.clientY); }
+            });
+            D.addEventListener('mouseup', e => {
+                if (this.s.mobile) return;
+                if (e.button === 2) return;
+                if (this.s.isDragging) { e.preventDefault(); this._end(e.clientX, e.clientY); }
+            });
+            G.addEventListener('contextmenu', e => {
+                if (this.s.mobile) return;
+                e.preventDefault();
+                if (this.s.isDragging) this._rotDrag();
+                else if (this.s.preview) this._rotPrev();
+            });
+            G.addEventListener('click', e => {
+                if (this.s.isDragging) return;
+                if (this.s.mobile) return;
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) return;
+                const r = +cell.dataset.row, c = +cell.dataset.col;
+                if (this.s.obstacle[r][c]) return;
+                if (this.s.grid[r][c]) {
+                    const b = this.s.player.find(b => b.id === this.s.grid[r][c]);
+                    if (b) this._remove(b);
+                }
+            });
+            D.addEventListener('keydown', e => {
+                if (e.key === 'r' || e.key === 'R') {
+                    if (this.s.isDragging) { e.preventDefault(); this._rotDrag(); }
+                    else if (this.s.preview) { e.preventDefault(); this._rotPrev(); }
+                    else if (this.s.selected) {
+                        const b = this.s.player.find(b => b.id === this.s.selected && !b.used);
+                        if (b) { e.preventDefault(); b.shape = U.rot(b.shape); this.r.cands(this.s.selected); }
+                    }
+                }
+                if (e.key === 'Escape') {
+                    if (this.s.isDragging) this._cancel();
+                    if (this.s.preview) this._cancelPrev();
+                    this.s.selected = null;
+                    this.r.all();
+                }
+            });
+            window.addEventListener('resize', () => {
+                this._upCS();
+                if (this.s.mobile) this._adjustGridSize();
+                else {
+                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                    this.r.ge.style.gridTemplateRows = '';
+                }
+                this.r.all();
+            });
+
+            // 菜单拖拽
+            const menuBtn = id('mobileMenuBtn');
+            let menuDragging = false, startX, startY, startLeft, startTop;
+            const onMenuStart = (clientX, clientY) => {
+                menuDragging = true;
+                startX = clientX;
+                startY = clientY;
+                startLeft = menuBtn.offsetLeft;
+                startTop = menuBtn.offsetTop;
+            };
+            const onMenuMove = (clientX, clientY) => {
+                if (!menuDragging) return;
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+                let newLeft = startLeft + dx;
+                let newTop = startTop + dy;
+                newLeft = Math.max(0, Math.min(window.innerWidth - menuBtn.offsetWidth, newLeft));
+                newTop = Math.max(0, Math.min(window.innerHeight - menuBtn.offsetHeight, newTop));
+                menuBtn.style.left = newLeft + 'px';
+                menuBtn.style.top = newTop + 'px';
+            };
+            const onMenuEnd = () => { menuDragging = false; };
+            menuBtn.addEventListener('touchstart', e => {
+                if (e.touches.length !== 1) return;
+                const t = e.touches[0];
+                onMenuStart(t.clientX, t.clientY);
+                e.preventDefault();
+            });
+            menuBtn.addEventListener('touchmove', e => {
+                if (!menuDragging) return;
+                const t = e.touches[0];
+                onMenuMove(t.clientX, t.clientY);
+                e.preventDefault();
+            });
+            menuBtn.addEventListener('touchend', onMenuEnd);
+            menuBtn.addEventListener('mousedown', e => {
+                if (e.button !== 0) return;
+                onMenuStart(e.clientX, e.clientY);
+                e.preventDefault();
+            });
+            window.addEventListener('mousemove', e => {
+                if (menuDragging) onMenuMove(e.clientX, e.clientY);
+            });
+            window.addEventListener('mouseup', onMenuEnd);
+
+            menuBtn.onclick = (e) => {
+                if (Math.abs(e.clientX - startX) > 5 || Math.abs(e.clientY - startY) > 5) return;
+                id('mobileMenuOverlay').style.display = 'flex';
+            };
+
+            const menuOverlay = id('mobileMenuOverlay');
+            id('menuClose').onclick = () => { menuOverlay.style.display = 'none'; };
+            menuOverlay.onclick = e => { if (e.target === menuOverlay) menuOverlay.style.display = 'none'; };
+            id('menuToggleMode').onclick = () => {
+                this.s.mobile = !this.s.mobile;
+                document.body.classList.toggle('mobile-mode', this.s.mobile);
+                document.getElementById('mobileMenuBtn').style.display = this.s.mobile ? 'block' : 'none';
+                this._modeUI();
+                if (this.s.mobile) this._adjustGridSize();
+                else {
+                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                    this.r.ge.style.gridTemplateRows = '';
+                }
+                menuOverlay.style.display = 'none';
+            };
+            id('menuHelp').onclick = () => { menuOverlay.style.display = 'none'; id('helpOverlay').style.display = 'flex'; };
+            id('menuSave').onclick = () => { menuOverlay.style.display = 'none'; id('btnSave').click(); };
+            id('menuLoad').onclick = () => { menuOverlay.style.display = 'none'; id('loadFileInput').click(); };
+            id('menuExportMap').onclick = () => { menuOverlay.style.display = 'none'; id('btnExportMap').click(); };
+            id('menuImportMap').onclick = () => { menuOverlay.style.display = 'none'; id('importMapInput').click(); };
+            id('menuDownloadHTML').onclick = () => { menuOverlay.style.display = 'none'; id('btnDownloadHTML').click(); };
+
+            id('btnNewGame').onclick = () => this.newGame();
+            id('btnReset').onclick = () => this.reset();
+            id('btnHint').onclick = () => this.hint();
+            id('btnToggleMode').onclick = () => {
+                this.s.mobile = !this.s.mobile;
+                document.body.classList.toggle('mobile-mode', this.s.mobile);
+                document.getElementById('mobileMenuBtn').style.display = this.s.mobile ? 'block' : 'none';
+                this._modeUI();
+                if (this.s.mobile) this._adjustGridSize();
+                else {
+                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+                    this.r.ge.style.gridTemplateRows = '';
+                }
+            };
+            id('btnHelp').onclick = () => id('helpOverlay').style.display = 'flex';
+            id('btnHelpClose').onclick = () => id('helpOverlay').style.display = 'none';
+            id('helpOverlay').onclick = function(e) { if (e.target === this) this.style.display = 'none'; };
+            id('showAlgoLink').onclick = e => { e.preventDefault(); id('helpOverlay').style.display = 'none'; id('algoOverlay').style.display = 'flex'; };
+            id('btnAlgoClose').onclick = () => id('algoOverlay').style.display = 'none';
+            id('algoOverlay').onclick = function(e) { if (e.target === this) this.style.display = 'none'; };
+            id('btnAlgoBack').onclick = () => { id('algoOverlay').style.display = 'none'; id('helpOverlay').style.display = 'flex'; };
+            id('showShapesFromHelp').onclick = e => { e.preventDefault(); id('helpOverlay').style.display = 'none'; id('shapesOverlay').style.display = 'flex'; };
+            id('btnShapesClose').onclick = () => id('shapesOverlay').style.display = 'none';
+            id('shapesOverlay').onclick = function(e) { if (e.target === this) this.style.display = 'none'; };
+            id('btnShapesBack').onclick = () => { id('shapesOverlay').style.display = 'none'; id('helpOverlay').style.display = 'flex'; };
+            id('btnVictoryNewGame').onclick = () => { id('victoryOverlay').style.display = 'none'; this.newGame(); };
+            id('btnRotateMobile').onclick = () => this._rotPrev();
+            id('btnPlaceMobile').onclick = () => this._commit();
+            id('btnCancelMobile').onclick = () => this._cancelPrev();
+            id('btnSave').onclick = () => U.saveToFile(this.s.saveData(this.totalScore), 'block_puzzle_save.bin');
+            id('btnLoad').onclick = () => id('loadFileInput').click();
+            id('loadFileInput').onchange = async e => {
+                const f = e.target.files[0]; if (!f) return;
+                try {
+                    const d = await U.loadFromFile(f);
+                    if (d.version >= 1.1) { this.s.loadSaveData(d); this.totalScore = d.totalScore || 0; this._saveScore(); this.r.all(); id('victoryOverlay').style.display = 'none'; }
+                    else alert('无效存档');
+                } catch { alert('读取失败'); }
+                e.target.value = '';
+            };
+            id('btnExportMap').onclick = () => {
+                const mapData = {
+                    rows: this.s.rows, cols: this.s.cols, difficulty: this.s.difficulty, colorMode: this.s.colorMode,
+                    rowCounts: this.s.rowC, colCounts: this.s.colC, target: this.s.target, obstacle: this.s.obstacle,
+                    playerBlocks: this.s.player.map(b => b.shape)
+                };
+                U.saveToFile(mapData, 'block_puzzle_map.bin');
+            };
+            id('btnImportMap').onclick = () => id('importMapInput').click();
+            id('importMapInput').onchange = async e => {
+                const f = e.target.files[0]; if (!f) return;
+                try {
+                    const data = await U.loadFromFile(f);
+                    if (data.rows && data.cols && data.playerBlocks && data.target && data.obstacle) {
+                        this.s.initFromMap(data);
+                        this.s.selected = null; this.r.hideGhost(); this.r.mobile(false); this.r.all(); this._upCS();
+                        if (this.s.mobile) this._adjustGridSize();
+                        id('victoryOverlay').style.display = 'none';
+                    } else alert('无效地图');
+                } catch { alert('读取失败'); }
+                e.target.value = '';
+            };
+            id('btnDownloadHTML').onclick = () => {
+                const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+                const blob = new Blob([html], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = '电路维修-管理员“技忆”恢复训练_v1.1.7.html';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            };
+        }
+        _start(id,mx,my){const b=this.s.player.find(b=>b.id===id);if(!b||b.used)return;this.s.isDragging=true;this.s.dragBlock=b;this.s.dragShape=[...b.shape];this.s.selected=id;this.s.draggedBlockId=b.id;this.s.lastMX=mx;this.s.lastMY=my;this.r.ghost(b.shape,b.color,mx,my,this.cs);this.r.cands(id);}
+        _startRedrag(block,mx,my){this.s.remove(block);this.s.isDragging=true;this.s.dragBlock=block;this.s.dragShape=[...block.shape];this.s.selected=block.id;this.s.draggedBlockId=block.id;this.s.lastMX=mx;this.s.lastMY=my;this.r.ghost(block.shape,block.color,mx,my,this.cs);this.r.cands(block.id);}
+        _drag(mx,my){const sh=this.s.dragShape,b=this.s.dragBlock;this.r.ghost(sh,b.color,mx,my,this.cs);const a=this._anchor(mx,my,sh);if(a){const v=this.s.canPlace(sh,a.row,a.col);this.r.grid(sh,a.row,a.col,v);}else this.r.grid();this.r.hints();}
+        _end(mx,my){
+            const sh=this.s.dragShape,b=this.s.dragBlock;const a=this._anchor(mx,my,sh);
+            if(a&&this.s.canPlace(sh,a.row,a.col)){
+                if(this.s.mobile){this.s.isDragging=false;this.s.draggedBlockId=null;this.r.hideGhost();this._setPrev(b,a.row,a.col,sh);}
+                else{b.shape=[...sh];this.s.place(b,a.row,a.col);this.s.selected=null;this.s.hintCells.clear();this._clean();this.r.all();this._check();}
+            }else{if(this.s.mobile&&a){this.s.isDragging=false;this.s.draggedBlockId=null;this.r.hideGhost();this._setPrev(b,a.row,a.col,sh);}else this._cancel();}
+        }
+        _cancel(){this._clean();this.r.all();}
+        _clean(){this.s.isDragging=false;this.s.dragBlock=null;this.s.dragShape=null;this.s.draggedBlockId=null;this.r.hideGhost();}
+        _rotDrag(){if(!this.s.isDragging)return;this.s.dragShape=U.rot(this.s.dragShape);this._drag(this.s.lastMX,this.s.lastMY);}
+        _remove(b){this.s.remove(b);if(this.s.hintCells.size>0){this.hint();}else{this.r.all();}}
+        _setPrev(b,r,c,sh){
+            this.s.isDragging = false;
+            this.s.dragBlock = null;
+            this.s.dragShape = null;
+            this.s.draggedBlockId = null;
+            this.r.hideGhost();
+            this.s.preview=b.id; this.s.previewR=r; this.s.previewC=c;
+            b._psh=[...sh];
+            this.r.grid(sh,r,c,true); this.r.hints(); this.r.mobile(true);
+        }
+        _movePrev(mx,my){if(!this.s.preview)return;const b=this.s.player.find(b=>b.id===this.s.preview);if(!b)return;const sh=b._psh||b.shape;const a=this._anchor(mx,my,sh);if(a){const v=this.s.canPlace(sh,a.row,a.col);this.s.previewR=a.row;this.s.previewC=a.col;this.r.grid(sh,a.row,a.col,v);}}
+        _rotPrev(){
+            if(!this.s.preview)return;
+            const b=this.s.player.find(b=>b.id===this.s.preview);
+            if(!b)return;
+            b._psh=U.rot(b._psh||b.shape);
+            const sh=b._psh;
+            const v=this.s.canPlace(sh,this.s.previewR,this.s.previewC);
+            this.r.grid(sh,this.s.previewR,this.s.previewC,v);
+        }
+        _commit(){
+            if(!this.s.preview)return;
+            const b=this.s.player.find(b=>b.id===this.s.preview);
+            if(!b||b.used)return this._cancelPrev();
+            const sh=b._psh||b.shape, r=this.s.previewR, c=this.s.previewC;
+            if(!this.s.canPlace(sh,r,c))return;
+            b.shape=[...sh]; this.s.place(b,r,c); delete b._psh;
+            this.s.hintCells.clear(); this.s.preview=null; this.s.selected=null; this.r.mobile(false); this.r.all(); this._check();
+        }
+        _cancelPrev(){
+            this.s.isDragging = false;
+            this.s.dragBlock = null;
+            this.s.dragShape = null;
+            this.s.draggedBlockId = null;
+            if(this.s.preview){const b=this.s.player.find(b=>b.id===this.s.preview);if(b)delete b._psh;}
+            this.s.preview=null;
+            this.r.hideGhost();
+            this.r.mobile(false);
+            this.r.all();
+        }
+        _startPrev(r,c){if(!this.s.selected)return;const b=this.s.player.find(b=>b.id===this.s.selected&&!b.used);if(!b)return;const sh=[...b.shape];if(this.s.canPlace(sh,r,c))this._setPrev(b,r,c,sh);}
+    }
+    new Game().newGame();
+})();
+</script>
+</body>
+</html>
