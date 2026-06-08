@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.5</title>
+    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.6</title>
     <style>
         :root {
             --bg: #0b0f1a;
@@ -338,7 +338,7 @@
 <body>
 <div class="game-container">
     <div class="game-header">
-        <div><span class="game-title">电路维修-管理员“技忆”恢复训练</span><span class="version-badge">v1.1.7</span></div>
+        <div><span class="game-title">电路维修-管理员“技忆”恢复训练</span><span class="version-badge">v1.1.7.6</span></div>
         <div class="status-bar" style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
             <span>积分: <strong id="totalScoreDisplay">0</strong></span>
             <span>剩余</span><span id="remainingBlocks">0</span>
@@ -736,6 +736,10 @@
                 if(anyOver) cls += ' overshot';
                 return `<div class="${cls}">${parts}</div>`;
             }).join('');
+
+            if (this.s.mobile) {
+                this.applyMobileHintStyles();
+            }
         }
         cands(sel=null){
             const un=this.s.unused(); if(!un.length){this.cl.innerHTML='<div style="padding:16px;color:var(--text-secondary);">所有方块已放置</div>';return;}
@@ -767,6 +771,65 @@
         ghost(sh,clr,mx,my,sz=42){const {w,h}=U.box(sh);const s=Math.max(28,Math.min(sz,44));this.gh.style.display='grid';this.gh.style.gridTemplateColumns=`repeat(${w},${s}px)`;this.gh.style.left=mx+'px';this.gh.style.top=my+'px';const set=new Set(sh.map(([y,x])=>`${y},${x}`));this.gh.innerHTML=Array.from({length:h},(_,y)=>Array.from({length:w},(_,x)=>`<div class="ghost-cell" style="width:${s}px;height:${s}px;${set.has(`${y},${x}`)?`background:${clr}`:''}"></div>`).join('')).join('');}
         hideGhost(){this.gh.style.display='none';}
         mobile(on){this.mc.classList.toggle('active',on);}
+
+        applyMobileHintStyles() {
+            const cellSize = this.s._cellSize || 42;
+            const colorCount = this.s.activeColors().length; // 1, 2, or 3
+            const rowHints = this.rh;
+            const colHints = this.ch;
+            const corner = document.querySelector('.corner-empty');
+
+            if (corner) { corner.style.width = `${cellSize}px`; corner.style.height = `${cellSize}px`; }
+            this.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
+            this.ge.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
+
+            rowHints.style.gridTemplateColumns = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
+            rowHints.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
+            colHints.style.gridTemplateRows = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
+            colHints.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
+
+            const rowCells = rowHints.querySelectorAll('.row-hint-cell');
+            rowCells.forEach(el => {
+                el.style.minWidth = `${cellSize}px`;
+                el.style.maxWidth = `${cellSize*1.25}px`;
+                el.style.width = 'auto';
+                el.style.height = `${cellSize}px`;
+                el.style.minHeight = `${cellSize}px`;
+                el.style.maxHeight = `${cellSize}px`;
+                el.style.lineHeight = '1.2';
+                el.style.overflow = 'hidden';
+            });
+            const colCells = colHints.querySelectorAll('.col-hint-cell');
+            colCells.forEach(el => {
+                el.style.minHeight = `${cellSize}px`;
+                el.style.maxHeight = `${cellSize*1.25}px`;
+                el.style.height = 'auto';
+                el.style.width = `${cellSize}px`;
+                el.style.minWidth = `${cellSize}px`;
+                el.style.maxWidth = `${cellSize}px`;
+                el.style.lineHeight = '1.2';
+                el.style.overflow = 'hidden';
+            });
+
+            // 根据颜色数量设定初始字体大小，保证 height ≈ 1.2 * 行数 * fontSize ≤ cellSize
+            let fontSize = Math.floor(cellSize / (1.2 * colorCount));
+            // 限制最小8px，最大不超过 cellSize
+            fontSize = Math.min(cellSize, Math.max(8, fontSize));
+            rowCells.forEach(el => el.style.fontSize = `${fontSize}px`);
+            colCells.forEach(el => el.style.fontSize = `${fontSize}px`);
+
+            let safety = 0;
+            while (safety < 10) {
+                let overflow = false;
+                rowCells.forEach(el => { if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) overflow = true; });
+                colCells.forEach(el => { if (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight) overflow = true; });
+                if (!overflow) break;
+                fontSize = Math.max(6, fontSize - 1);
+                rowCells.forEach(el => el.style.fontSize = `${fontSize}px`);
+                colCells.forEach(el => el.style.fontSize = `${fontSize}px`);
+                safety++;
+            }
+        }
     }
 
     const id=s=>document.getElementById(s);
@@ -800,35 +863,40 @@
             }
         }
         _resetDesktopGrid(){
-            // 桌面端恢复默认弹性布局
             this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
             this.r.ge.style.gridTemplateRows = '';
+            this.r.rh.style.gridTemplateColumns = '';
             this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, 1fr)`;
-            this.r.rh.style.gridAutoColumns = '';
+            this.r.ch.style.gridTemplateRows = '';
             this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-            this.r.ch.style.gridAutoRows = '';
             const corner = document.querySelector('.corner-empty');
             if (corner) { corner.style.width = ''; corner.style.height = ''; }
-            const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
-            hintCells.forEach(el => {
-                el.style.fontSize = '';
-                el.style.lineHeight = '';
-                el.style.height = '';
-                el.style.width = '';
-                el.style.minWidth = '';
-                el.style.maxWidth = '';
-                el.style.minHeight = '';
-                el.style.maxHeight = '';
+            const rowCells = this.r.rh.querySelectorAll('.row-hint-cell');
+            const colCells = this.r.ch.querySelectorAll('.col-hint-cell');
+            rowCells.forEach(el => {
+                el.style.fontSize = ''; el.style.lineHeight = ''; el.style.height = ''; el.style.width = '';
+                el.style.minWidth = ''; el.style.maxWidth = ''; el.style.minHeight = ''; el.style.maxHeight = '';
             });
-            // 桌面端也应用1.25倍最小宽高（基于实际格子大小）
+            colCells.forEach(el => {
+                el.style.fontSize = ''; el.style.lineHeight = ''; el.style.height = ''; el.style.width = '';
+                el.style.minWidth = ''; el.style.maxWidth = ''; el.style.minHeight = ''; el.style.maxHeight = '';
+            });
             this._upCS();
             if (this.cs > 0) {
                 const minSize = this.cs * 1.25;
-                this.r.rh.querySelectorAll('.row-hint-cell').forEach(el => {
+                rowCells.forEach(el => {
                     el.style.minWidth = `${minSize}px`;
+                    el.style.maxWidth = `${minSize}px`;
+                    el.style.width = 'auto';
+                    el.style.height = '100%';
+                    el.style.lineHeight = '1.2';
                 });
-                this.r.ch.querySelectorAll('.col-hint-cell').forEach(el => {
+                colCells.forEach(el => {
                     el.style.minHeight = `${minSize}px`;
+                    el.style.maxHeight = `${minSize}px`;
+                    el.style.height = 'auto';
+                    el.style.width = '100%';
+                    el.style.lineHeight = '1.2';
                 });
             }
         }
@@ -841,8 +909,6 @@
         _adjustGridSize() {
             if (!this.s.mobile) return;
             const mainArea = document.querySelector('.main-game-area');
-            const container = this.r.ge.parentElement;
-            const corner = container.querySelector('.corner-empty');
             const gap = 2;
             const mainWidth = mainArea.clientWidth;
             const mainHeight = mainArea.clientHeight;
@@ -851,7 +917,6 @@
             const verticalPadding = 16;
             const availHeight = mainHeight - candidateHeight - controlsHeight - verticalPadding;
             let cellSize = 42;
-            // 行列提示允许稍微放大（1.25倍），所以用放大后尺寸计算需求
             for (let trySize = 42; trySize >= 12; trySize--) {
                 const totalGridWidth = trySize * this.s.cols + gap * (this.s.cols - 1);
                 const totalGridHeight = trySize * this.s.rows + gap * (this.s.rows - 1);
@@ -866,43 +931,7 @@
                 }
             }
             cellSize = Math.max(cellSize, 12);
-            this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
-            this.r.ge.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
-            corner.style.width = `${cellSize}px`;
-            corner.style.height = `${cellSize}px`;
-            // 行提示宽度：1~1.25倍
-            this.r.rh.style.gridAutoColumns = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
-            this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
-            // 列提示高度：1~1.25倍
-            this.r.ch.style.gridAutoRows = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
-            this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
-            const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
-            hintCells.forEach(el => {
-                el.style.minWidth = `${cellSize}px`;
-                el.style.maxWidth = `${cellSize*1.25}px`;
-                el.style.minHeight = `${cellSize}px`;
-                el.style.maxHeight = `${cellSize*1.25}px`;
-                el.style.width = 'auto';
-                el.style.height = 'auto';
-                el.style.lineHeight = '1.2';
-                el.style.overflow = 'hidden';
-            });
-            let fontSize = Math.floor(cellSize * 0.3);
-            for (const cell of hintCells) cell.style.fontSize = `${fontSize}px`;
-            let safety = 0;
-            while (safety < 10) {
-                let overflow = false;
-                for (const cell of hintCells) {
-                    if (cell.scrollWidth > cell.clientWidth || cell.scrollHeight > cell.clientHeight) {
-                        overflow = true;
-                        break;
-                    }
-                }
-                if (!overflow) break;
-                fontSize = Math.max(6, fontSize - 1);
-                for (const cell of hintCells) cell.style.fontSize = `${fontSize}px`;
-                safety++;
-            }
+            this.s._cellSize = cellSize;
             this.cs = cellSize;
             this.r.all();
         }
@@ -1045,7 +1074,7 @@
                 }
             });
 
-            // 手机端触摸事件（支持预览方块再次拖动）
+            // 手机端触摸事件
             C.addEventListener('touchstart', e => {
                 const el = e.target.closest('.candidate-block');
                 if (!el || el.classList.contains('used') || e.touches.length !== 1) return;
@@ -1059,13 +1088,11 @@
                 if (this.s.isDragging) return;
                 const cell = e.target.closest('.grid-cell');
                 if (!cell) {
-                    // 触摸点不在任何网格单元格上，取消预览（如果有）
                     if (this.s.preview) this._cancelPrev();
                     return;
                 }
                 const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
                 if (isNaN(r) || isNaN(c)) return;
-                // 如果有预览方块，判断触摸单元格是否属于预览
                 if (this.s.preview) {
                     const block = this.s.player.find(b => b.id === this.s.preview);
                     if (block && block._psh) {
@@ -1088,11 +1115,9 @@
                             return;
                         }
                     }
-                    // 触摸单元格不属于预览，取消预览
                     this._cancelPrev();
                     return;
                 }
-                // 无预览，处理已放置方块
                 if (this.s.obstacle[r][c]) return;
                 if (this.s.grid[r][c]) {
                     e.preventDefault();
