@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.4</title>
+    <title>电路维修-管理员“技忆”恢复训练 v1.1.7.5</title>
     <style>
         :root {
             --bg: #0b0f1a;
@@ -796,18 +796,39 @@
             if (this.s.mobile) {
                 this._adjustGridSize();
             } else {
-                this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                this.r.ge.style.gridTemplateRows = '';
-                this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, 1fr)`;
-                this.r.rh.style.gridAutoColumns = '';
-                this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                this.r.ch.style.gridAutoRows = '';
-                const corner = document.querySelector('.corner-empty');
-                if (corner) { corner.style.width = ''; corner.style.height = ''; }
-                document.querySelectorAll('.col-hint-cell, .row-hint-cell').forEach(el => {
-                    el.style.fontSize = '';
-                    el.style.lineHeight = '';
-                    el.style.height = '';
+                this._resetDesktopGrid();
+            }
+        }
+        _resetDesktopGrid(){
+            // 桌面端恢复默认弹性布局
+            this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+            this.r.ge.style.gridTemplateRows = '';
+            this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, 1fr)`;
+            this.r.rh.style.gridAutoColumns = '';
+            this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
+            this.r.ch.style.gridAutoRows = '';
+            const corner = document.querySelector('.corner-empty');
+            if (corner) { corner.style.width = ''; corner.style.height = ''; }
+            const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
+            hintCells.forEach(el => {
+                el.style.fontSize = '';
+                el.style.lineHeight = '';
+                el.style.height = '';
+                el.style.width = '';
+                el.style.minWidth = '';
+                el.style.maxWidth = '';
+                el.style.minHeight = '';
+                el.style.maxHeight = '';
+            });
+            // 桌面端也应用1.25倍最小宽高（基于实际格子大小）
+            this._upCS();
+            if (this.cs > 0) {
+                const minSize = this.cs * 1.25;
+                this.r.rh.querySelectorAll('.row-hint-cell').forEach(el => {
+                    el.style.minWidth = `${minSize}px`;
+                });
+                this.r.ch.querySelectorAll('.col-hint-cell').forEach(el => {
+                    el.style.minHeight = `${minSize}px`;
                 });
             }
         }
@@ -830,12 +851,13 @@
             const verticalPadding = 16;
             const availHeight = mainHeight - candidateHeight - controlsHeight - verticalPadding;
             let cellSize = 42;
+            // 行列提示允许稍微放大（1.25倍），所以用放大后尺寸计算需求
             for (let trySize = 42; trySize >= 12; trySize--) {
                 const totalGridWidth = trySize * this.s.cols + gap * (this.s.cols - 1);
                 const totalGridHeight = trySize * this.s.rows + gap * (this.s.rows - 1);
                 const cornerSize = trySize;
-                const rowHintWidth = trySize;
-                const colHintHeight = trySize;
+                const rowHintWidth = trySize * 1.25;
+                const colHintHeight = trySize * 1.25;
                 const neededWidth = cornerSize + rowHintWidth + totalGridWidth + 4;
                 const neededHeight = cornerSize + colHintHeight + totalGridHeight + 4;
                 if (neededWidth <= mainWidth && neededHeight <= availHeight) {
@@ -848,15 +870,21 @@
             this.r.ge.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
             corner.style.width = `${cellSize}px`;
             corner.style.height = `${cellSize}px`;
-            this.r.rh.style.gridAutoColumns = `${cellSize}px`;
+            // 行提示宽度：1~1.25倍
+            this.r.rh.style.gridAutoColumns = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
             this.r.rh.style.gridTemplateRows = `repeat(${this.s.rows}, ${cellSize}px)`;
-            this.r.ch.style.gridAutoRows = `${cellSize}px`;
+            // 列提示高度：1~1.25倍
+            this.r.ch.style.gridAutoRows = `minmax(${cellSize}px, ${cellSize*1.25}px)`;
             this.r.ch.style.gridTemplateColumns = `repeat(${this.s.cols}, ${cellSize}px)`;
             const hintCells = document.querySelectorAll('.col-hint-cell, .row-hint-cell');
             hintCells.forEach(el => {
-                el.style.width = `${cellSize}px`;
-                el.style.height = `${cellSize}px`;
-                el.style.lineHeight = `${cellSize}px`;
+                el.style.minWidth = `${cellSize}px`;
+                el.style.maxWidth = `${cellSize*1.25}px`;
+                el.style.minHeight = `${cellSize}px`;
+                el.style.maxHeight = `${cellSize*1.25}px`;
+                el.style.width = 'auto';
+                el.style.height = 'auto';
+                el.style.lineHeight = '1.2';
                 el.style.overflow = 'hidden';
             });
             let fontSize = Math.floor(cellSize * 0.3);
@@ -927,10 +955,7 @@
                     this.r.all();
                     this._upCS();
                     if (this.s.mobile) this._adjustGridSize();
-                    else {
-                        this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                        this.r.ge.style.gridTemplateRows = '';
-                    }
+                    else this._resetDesktopGrid();
                     document.getElementById('victoryOverlay').style.display='none';
                 } catch (e) {
                     if (retry > 0) setTimeout(() => this.newGame(retry-1), 20);
@@ -1020,7 +1045,7 @@
                 }
             });
 
-            // 手机端触摸事件
+            // 手机端触摸事件（支持预览方块再次拖动）
             C.addEventListener('touchstart', e => {
                 const el = e.target.closest('.candidate-block');
                 if (!el || el.classList.contains('used') || e.touches.length !== 1) return;
@@ -1031,46 +1056,43 @@
             G.addEventListener('touchstart', e => {
                 if (e.touches.length !== 1) return;
                 const touch = e.touches[0];
-                // 如果正在拖拽，不处理
                 if (this.s.isDragging) return;
-                // 如果已经有预览方块，判断触摸点是否在预览方块上
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) {
+                    // 触摸点不在任何网格单元格上，取消预览（如果有）
+                    if (this.s.preview) this._cancelPrev();
+                    return;
+                }
+                const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
+                if (isNaN(r) || isNaN(c)) return;
+                // 如果有预览方块，判断触摸单元格是否属于预览
                 if (this.s.preview) {
                     const block = this.s.player.find(b => b.id === this.s.preview);
                     if (block && block._psh) {
                         const shape = block._psh;
                         const pr = this.s.previewR, pc = this.s.previewC;
-                        const cell = e.target.closest('.grid-cell');
-                        if (cell) {
-                            const cr = parseInt(cell.dataset.row), cc = parseInt(cell.dataset.col);
-                            const relR = cr - pr, relC = cc - pc;
-                            if (shape.some(([y,x]) => y === relR && x === relC)) {
-                                // 点击在预览方块上，拿起重新拖拽
-                                e.preventDefault();
-                                this.s.isDragging = true;
-                                this.s.dragBlock = block;
-                                this.s.dragShape = [...shape];
-                                this.s.draggedBlockId = block.id;
-                                this.s.preview = null;
-                                delete block._psh;
-                                this.r.mobile(false);
-                                this.s.lastMX = touch.clientX;
-                                this.s.lastMY = touch.clientY;
-                                this.r.ghost(shape, block.color, touch.clientX, touch.clientY, this.cs);
-                                this.r.grid();
-                                this.r.hints();
-                                return;
-                            }
+                        if (shape.some(([dy,dx]) => (pr + dy) === r && (pc + dx) === c)) {
+                            e.preventDefault();
+                            this.s.isDragging = true;
+                            this.s.dragBlock = block;
+                            this.s.dragShape = [...shape];
+                            this.s.draggedBlockId = block.id;
+                            this.s.preview = null;
+                            delete block._psh;
+                            this.r.mobile(false);
+                            this.s.lastMX = touch.clientX;
+                            this.s.lastMY = touch.clientY;
+                            this.r.ghost(shape, block.color, touch.clientX, touch.clientY, this.cs);
+                            this.r.grid();
+                            this.r.hints();
+                            return;
                         }
                     }
-                    // 触摸点在预览方块外，取消预览
+                    // 触摸单元格不属于预览，取消预览
                     this._cancelPrev();
                     return;
                 }
-                // 无预览，处理拿起已放置方块
-                const cell = e.target.closest('.grid-cell');
-                if (!cell) return;
-                const r = parseInt(cell.dataset.row), c = parseInt(cell.dataset.col);
-                if (isNaN(r) || isNaN(c)) return;
+                // 无预览，处理已放置方块
                 if (this.s.obstacle[r][c]) return;
                 if (this.s.grid[r][c]) {
                     e.preventDefault();
@@ -1119,10 +1141,7 @@
             window.addEventListener('resize', () => {
                 this._upCS();
                 if (this.s.mobile) this._adjustGridSize();
-                else {
-                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                    this.r.ge.style.gridTemplateRows = '';
-                }
+                else this._resetDesktopGrid();
                 this.r.all();
             });
 
@@ -1185,10 +1204,7 @@
                 document.getElementById('mobileMenuBtn').style.display = this.s.mobile ? 'block' : 'none';
                 this._modeUI();
                 if (this.s.mobile) this._adjustGridSize();
-                else {
-                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                    this.r.ge.style.gridTemplateRows = '';
-                }
+                else this._resetDesktopGrid();
                 menuOverlay.style.display = 'none';
             };
             id('menuHelp').onclick = () => { menuOverlay.style.display = 'none'; id('helpOverlay').style.display = 'flex'; };
@@ -1207,10 +1223,7 @@
                 document.getElementById('mobileMenuBtn').style.display = this.s.mobile ? 'block' : 'none';
                 this._modeUI();
                 if (this.s.mobile) this._adjustGridSize();
-                else {
-                    this.r.ge.style.gridTemplateColumns = `repeat(${this.s.cols}, 1fr)`;
-                    this.r.ge.style.gridTemplateRows = '';
-                }
+                else this._resetDesktopGrid();
             };
             id('btnHelp').onclick = () => id('helpOverlay').style.display = 'flex';
             id('btnHelpClose').onclick = () => id('helpOverlay').style.display = 'none';
@@ -1255,6 +1268,7 @@
                         this.s.initFromMap(data);
                         this.s.selected = null; this.r.hideGhost(); this.r.mobile(false); this.r.all(); this._upCS();
                         if (this.s.mobile) this._adjustGridSize();
+                        else this._resetDesktopGrid();
                         id('victoryOverlay').style.display = 'none';
                     } else alert('无效地图');
                 } catch { alert('读取失败'); }
